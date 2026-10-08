@@ -1,0 +1,2376 @@
+<title>ConcreteCalc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap">
+<style>
+/* Layout: site-office shell. Charcoal nav rail (RTL: right side), working sheet in the middle,
+   results styled as a bill-of-quantities slip beside a scaled cross-section; safety-yellow as the one loud colour. */
+:root{
+  --bg:#EEEDE8;          /* site-office paper, warm grey */
+  --surface:#F6F5F1;
+  --raised:#FFFFFF;
+  --ink:#1B1A17;
+  --ink-2:#4A4842;
+  --muted:#77746C;
+  --line:#D6D3CA;
+  --line-2:#E6E3DB;
+  --brand:#FFC21A;       /* safety / plant yellow: fills only */
+  --brand-ink:#1B1A17;
+  --accent:#8A6400;      /* the same yellow darkened enough to read as text on light ground */
+  --accent-ink:#1B1A17;
+  --accent-soft:#FFF0BF;
+  --charcoal:#1E1D1A;    /* rail, hero, footer */
+  --charcoal-2:#2B2A26;
+  --on-dark:#F2F0EA;
+  --on-dark-2:#ADA99F;
+  --conc:#5E5B53;        /* concrete quantities in charts */
+  --rebar:#94491F;       /* rebar mill-scale brown: used only for steel quantities */
+  --rebar-soft:#EFDDD1;
+  --grid:#E6E1D2;
+  --ok:#2C7549; --ok-soft:#D8EBDF;
+  --warn:#8F5E00; --warn-soft:#F4E7C8;
+  --bad:#AE2A20; --bad-soft:#F6DAD6;
+  --shadow:0 1px 2px rgba(25,32,35,.06),0 6px 20px rgba(25,32,35,.06);
+  --boq-head:#F7D917;    /* quantity-survey sheet header yellow */
+  --boq-head-ink:#1A1A12;
+  --boq-title:#C8331B;
+
+  --display:"Alexandria","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+
+  --t-xs:.75rem; --t-sm:.8125rem; --t-md:.9375rem; --t-lg:1.125rem; --t-xl:1.5rem; --t-2xl:2rem;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#121210; --surface:#1A1917; --raised:#22211E; --ink:#EEECE6; --ink-2:#BDB9AF; --muted:#8C887E;
+    --line:#36342F; --line-2:#2A2925; --accent:#FFC94A; --accent-ink:#1B1A17; --accent-soft:#3A3014;
+    --charcoal:#0C0C0B; --charcoal-2:#1C1B19; --conc:#B3AEA2;
+    --rebar:#E09A6E; --rebar-soft:#3A2619; --grid:#2A2822;
+    --ok:#6CC28F; --ok-soft:#173025; --warn:#E3B04F; --warn-soft:#352914; --bad:#F08A80; --bad-soft:#3A1C1A;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);
+    --boq-head:#5C4D0B; --boq-head-ink:#FFF3B0; --boq-title:#F2836B;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121210; --surface:#1A1917; --raised:#22211E; --ink:#EEECE6; --ink-2:#BDB9AF; --muted:#8C887E;
+  --line:#36342F; --line-2:#2A2925; --accent:#FFC94A; --accent-ink:#1B1A17; --accent-soft:#3A3014;
+  --charcoal:#0C0C0B; --charcoal-2:#1C1B19; --conc:#B3AEA2;
+  --rebar:#E09A6E; --rebar-soft:#3A2619; --grid:#2A2822;
+  --ok:#6CC28F; --ok-soft:#173025; --warn:#E3B04F; --warn-soft:#352914; --bad:#F08A80; --bad-soft:#3A1C1A;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);
+  --boq-head:#5C4D0B; --boq-head-ink:#FFF3B0; --boq-title:#F2836B;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:var(--t-md);line-height:1.6}
+#app{min-height:100%}
+h1,h2,h3{font-family:var(--display);font-weight:var(--hw,700);margin:0;text-wrap:balance;line-height:1.3}
+h1{font-size:var(--t-2xl)} h2{font-size:var(--t-xl)} h3{font-size:var(--t-lg)}
+p{margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.eyebrow{font-size:var(--t-xs);letter-spacing:.06em;color:var(--muted);font-weight:500}
+.muted{color:var(--muted)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--line);background:var(--raised);color:var(--ink);
+  padding:.5rem .95rem;border-radius:var(--r);cursor:pointer;font-weight:500;font-size:var(--t-sm);white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:hover{border-color:var(--ink-2)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--surface);border-color:var(--line)}
+.btn.danger{color:var(--bad)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn svg{width:16px;height:16px;flex:none}
+
+/* forms */
+.field{display:flex;flex-direction:column;gap:.3rem;min-width:0}
+.field label{font-size:var(--t-sm);font-weight:500;color:var(--ink-2);display:flex;justify-content:space-between;gap:.5rem}
+.field label .unit{color:var(--muted);font-weight:400;font-family:var(--mono);font-size:var(--t-xs)}
+.input{width:100%;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:.5rem .65rem;min-height:2.4rem}
+.input.num{text-align:left}
+.input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.field.err .input{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+.field .msg{font-size:var(--t-xs);color:var(--bad);min-height:0}
+.field .msg:empty{display:none}
+
+/* ---------- AUTH ---------- */
+.auth{min-height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);padding-block:0}
+.auth-form{display:flex;align-items:center;justify-content:center;padding:2.5rem 1.25rem}
+.auth-card{width:100%;max-width:400px;display:flex;flex-direction:column;gap:1.25rem}
+.brand{display:flex;align-items:center;gap:.6rem;font-family:var(--display);font-weight:700;font-size:var(--t-lg)}
+.brand-mark{width:30px;height:30px;flex:none}
+.tabs{display:flex;border-bottom:1px solid var(--line);gap:1.25rem}
+.tab{background:none;border:none;padding:.6rem 0;cursor:pointer;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+.stack{display:flex;flex-direction:column;gap:.9rem}
+.form-err{background:var(--bad-soft);color:var(--bad);padding:.55rem .75rem;border-radius:var(--r);font-size:var(--t-sm)}
+.note{font-size:var(--t-xs);color:var(--muted)}
+.divider{display:flex;align-items:center;gap:.75rem;color:var(--muted);font-size:var(--t-xs)}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.auth-sheet{background:var(--charcoal);color:var(--on-dark);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:1.4rem;padding:3.5rem clamp(1.25rem,4vw,3.5rem)}
+.auth-sheet::before{content:"";position:absolute;inset:0;opacity:.07;
+  background-image:linear-gradient(#FFC21A 1px,transparent 1px),linear-gradient(90deg,#FFC21A 1px,transparent 1px);
+  background-size:40px 40px}
+/* hazard-tape strip along the top edge */
+.auth-sheet::after{content:"";position:absolute;inset-inline:0;top:0;height:10px;
+  background:repeating-linear-gradient(-45deg,var(--brand) 0 14px,#1B1A17 14px 28px)}
+.auth-sheet>*{position:relative}
+.auth-sheet .eyebrow{color:var(--brand);letter-spacing:.14em;font-weight:600;text-transform:uppercase}
+.auth-sheet h1{font-size:clamp(2rem,4vw,3.2rem);line-height:1.12;max-width:16ch;color:#fff;letter-spacing:-.01em}
+.auth-sheet .rule{width:min(320px,60%);height:1px;background:rgba(255,255,255,.35)}
+.auth-sheet .lede{max-width:46ch;color:var(--on-dark-2)}
+.sheet-calc{background:rgba(255,255,255,.04);border:1px solid rgba(255,194,26,.35);border-radius:var(--r);padding:1rem 1.1rem;display:grid;grid-template-columns:auto 1fr;gap:1rem 1.25rem;align-items:center;max-width:520px}
+.sheet-calc svg{width:120px;height:auto}
+.sheet-calc dl{margin:0;display:grid;grid-template-columns:auto auto;gap:.2rem 1rem;font-size:var(--t-sm)}
+.sheet-calc dt{color:rgba(255,255,255,.7)} .sheet-calc dd{margin:0;text-align:left;color:#fff}
+.sheet-calc .formula{grid-column:1/-1;font-family:var(--mono);font-size:var(--t-xs);color:rgba(255,255,255,.8);direction:ltr;text-align:left;border-top:1px dashed rgba(255,255,255,.3);padding-top:.6rem}
+.sheet-tags{display:flex;flex-wrap:wrap;gap:.4rem}
+.sheet-tags span{border:1px solid rgba(255,194,26,.45);color:var(--on-dark);padding:.15rem .6rem;border-radius:99px;font-size:var(--t-xs)}
+
+/* ---------- SHELL ---------- */
+.shell{display:grid;grid-template-columns:var(--rail-w,232px) minmax(0,1fr);min-height:100%}
+.rail{background:var(--charcoal);color:var(--on-dark);padding:1.25rem .85rem;display:flex;flex-direction:column;gap:1.5rem;position:sticky;top:env(safe-area-inset-top,0px);height:100vh;max-height:100%}
+.nav{display:flex;flex-direction:column;gap:.2rem}
+.nav button{display:flex;align-items:center;gap:.65rem;background:none;border:none;padding:.6rem .7rem;border-radius:var(--r);cursor:pointer;color:var(--on-dark-2);font-weight:500;text-align:start}
+.nav button svg{width:18px;height:18px}
+.nav button:hover{background:var(--charcoal-2);color:var(--on-dark)}
+.nav button[aria-current="page"]{background:var(--brand);color:var(--brand-ink);font-weight:600}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:.6rem;font-size:var(--t-sm)}
+.rail .btn.ghost{color:var(--on-dark-2)}
+.rail .btn.ghost:hover{background:var(--charcoal-2);border-color:transparent;color:var(--on-dark)}
+.rail .who-mail{color:var(--on-dark-2)}
+.who{display:flex;align-items:center;gap:.6rem;min-width:0}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-weight:600;flex:none;font-family:var(--display)}
+.who-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who-mail{font-size:var(--t-xs);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:right}
+main{padding:1.75rem clamp(1rem,3vw,2.5rem) 3rem;display:flex;flex-direction:column;gap:1.5rem;min-width:0}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.page-head .actions{display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* ---------- DASHBOARD ---------- */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tile{background:var(--raised);padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.25rem}
+.tile .v{font-family:var(--mono);font-size:1.65rem;font-weight:500;font-variant-numeric:tabular-nums;direction:ltr;text-align:right;line-height:1.2}
+.tile .v small{font-size:var(--t-sm);color:var(--muted);font-family:var(--body);margin-inline-start:.25rem}
+.tile .sub{font-size:var(--t-xs);color:var(--muted)}
+.tile.steel .v{color:var(--rebar)}
+
+.panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.panel{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:1.1rem 1.2rem;display:flex;flex-direction:column;gap:.9rem;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem;flex-wrap:wrap}
+.panel-head p{font-size:var(--t-xs);color:var(--muted)}
+
+.hbars{display:flex;flex-direction:column;gap:.55rem;flex:1;justify-content:space-around}
+.hbar{display:grid;grid-template-columns:5.5rem minmax(0,1fr) 5.5rem;align-items:center;gap:.6rem;font-size:var(--t-sm);padding:2px 0;cursor:default}
+.hbar .track{height:var(--bar-h,14px);transition:height .2s;background:transparent;position:relative;border-inline-start:1px solid var(--line)}
+.hbar .fill{position:absolute;inset-block:0;inset-inline-start:0;border-radius:0 4px 4px 0;background:var(--accent);min-width:2px;transition:width .4s ease}
+[dir="rtl"] .hbar .fill{border-radius:4px 0 0 4px}
+.hbar.steel .fill{background:var(--rebar)}
+.hbar .val{text-align:left;color:var(--ink-2)}
+.hbar:hover .fill{filter:brightness(1.12)}
+.hbar:hover .lbl{color:var(--ink)}
+.axis{display:grid;grid-template-columns:5.5rem minmax(0,1fr) 5.5rem;gap:.6rem;font-size:var(--t-xs);color:var(--muted)}
+.axis .ticks{display:flex;justify-content:space-between;border-top:1px solid var(--line-2);padding-top:.2rem}
+
+.ratio{display:flex;flex-direction:column;gap:.7rem;flex:1;justify-content:space-around}
+/* resizable panels */
+.panels{grid-auto-flow:row dense}
+.panels-tip{margin-bottom:-.75rem}
+.rz-panel{position:relative;overflow:hidden}
+.rz-panel.editing{outline:2px dashed var(--brand);outline-offset:3px;overflow:visible;user-select:none}
+.rz-panel.dragging{transition:none}
+.rz-panel.editing,[data-hover="1"] .rz-panel.editing:hover{transform:none;box-shadow:var(--shadow)}
+.rz,.rz-tools{display:none}
+.rz-panel.editing .rz,.rz-panel.editing .rz-tools{display:flex}
+.rz{position:absolute;background:var(--raised);border:2px solid var(--brand);z-index:3;touch-action:none}
+.rz-x{top:50%;inset-inline-end:-9px;width:12px;height:40px;margin-top:-20px;border-radius:6px;cursor:ew-resize}
+.rz-y{left:50%;bottom:-9px;width:40px;height:12px;margin-left:-20px;border-radius:6px;cursor:ns-resize}
+.rz-xy{bottom:-9px;inset-inline-end:-9px;width:16px;height:16px;border-radius:3px;background:var(--brand);cursor:nwse-resize}
+[dir="rtl"] .rz-xy{cursor:nesw-resize}
+.rz-tools{position:absolute;top:.6rem;inset-inline-end:.6rem;gap:.3rem;align-items:center;z-index:4;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:.25rem;box-shadow:var(--shadow)}
+.rz-tools button{background:transparent;border:1px solid transparent;border-radius:4px;padding:.2rem .55rem;font-size:var(--t-xs);font-weight:600;color:var(--ink-2);cursor:pointer}
+.rz-tools button:hover{border-color:var(--line)}
+.rz-tools button.on{background:var(--brand);color:var(--brand-ink)}
+.rz-size{font-size:var(--t-xs);color:var(--muted);padding:0 .35rem}
+.ratio-row{display:grid;grid-template-columns:5.5rem minmax(0,1fr) 4.5rem;gap:.6rem;align-items:center;font-size:var(--t-sm)}
+.ratio-track{position:relative;height:22px;border-bottom:1px solid var(--line-2)}
+.ratio-band{position:absolute;top:5px;height:12px;background:var(--ok-soft);border-radius:3px}
+.ratio-dot{position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:var(--rebar);border:2px solid var(--raised);transform:translateX(50%)}
+/* left-to-right (English) overrides for the few physically aligned pieces */
+[dir="ltr"] .ratio-dot{transform:translateX(-50%)}
+[dir="ltr"] .tile .v,[dir="ltr"] .who-mail{text-align:left}
+[dir="ltr"] .hbar .val{text-align:right}
+.lang-btn{font-family:var(--body);font-weight:600;letter-spacing:.02em}
+.lang-btn svg{width:20px;height:20px}
+.mobile-bar nav svg{width:18px;height:18px;vertical-align:-4px}
+.drawing-head{align-items:center}
+.view-toggle{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.view-toggle button{background:transparent;border:none;padding:.15rem .6rem;font-family:var(--mono);font-size:var(--t-xs);font-weight:600;color:var(--muted);cursor:pointer}
+.view-toggle button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+/* drawings are laid out in absolute coordinates: keep their text left-to-right in both languages */
+.drawing svg{direction:ltr;unicode-bidi:isolate}
+.drawing-body.d3{padding:0;position:relative;display:block;cursor:grab;touch-action:none;min-height:220px}
+.drawing-body.d3 canvas{display:block;width:100%}
+.d3-hint,.d3-dims{position:absolute;bottom:.45rem;font-size:var(--t-xs);color:var(--muted);pointer-events:none;background:color-mix(in srgb,var(--raised) 80%,transparent);padding:.1rem .4rem;border-radius:3px}
+.d3-hint{inset-inline-start:.5rem}
+.d3-dims{inset-inline-end:.5rem}
+@media (max-width:440px){.d3-hint{display:none}}
+.hbar .fill{background:var(--conc)}
+
+/* ---------- LANDING / SIGN-IN HERO (always dark: sits on a drawn skyline) ---------- */
+.landing{min-height:100%;display:flex;flex-direction:column;background:var(--charcoal)}
+.hero{position:relative;min-height:clamp(620px,100svh,920px);display:flex;flex-direction:column;color:#fff;overflow:hidden;isolation:isolate}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%;z-index:-2;display:block;background:#3A3022}
+.hero-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(14,12,9,.6) 0%,rgba(14,12,9,.12) 30%,rgba(14,12,9,.3) 62%,rgba(14,12,9,.92) 100%)}
+.topnav{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem clamp(1rem,4vw,3rem);flex-wrap:wrap}
+.topnav .brand{color:#fff}
+.topnav nav{display:flex;align-items:center;gap:.15rem;flex-wrap:wrap}
+.topnav nav button{background:none;border:none;color:rgba(255,255,255,.9);font-weight:600;padding:.45rem .7rem;cursor:pointer;border-radius:var(--r);display:inline-flex;gap:.4rem;align-items:center;font-size:var(--t-sm)}
+.topnav nav button:hover{color:var(--brand)}
+.topnav nav svg{width:20px;height:20px}
+.hero-inner{flex:1;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,400px);gap:clamp(1.5rem,5vw,5rem);align-items:center;padding:1.5rem clamp(1rem,4vw,3rem) 3rem}
+.hero-copy{display:flex;flex-direction:column;gap:1rem;align-items:flex-start;min-width:0;max-width:100%}
+.hero-copy .eyebrow{color:var(--brand);letter-spacing:.16em;font-weight:600;text-transform:uppercase}
+.hero-title{font-size:clamp(2.3rem,5.6vw,4.8rem);line-height:1.05;color:#fff;letter-spacing:-.01em;max-width:13ch;text-shadow:0 2px 28px rgba(0,0,0,.4);font-weight:800}
+/* Latin capitals run much wider than Arabic: smaller size and a wider measure keep the longest word inside the column */
+.hero-title{max-width:min(13ch,100%)}
+[lang="en"] .hero-title{text-transform:uppercase;letter-spacing:.01em;font-size:clamp(1.9rem,4vw,3.5rem);max-width:min(17ch,100%);line-height:1.08}
+/* word-by-word motion: each word is clipped by its own box */
+.hero-title .w{display:inline-block;overflow:hidden;vertical-align:top;padding:.08em 0 .2em;margin:-.08em 0 -.2em}
+.hero-title .wi{display:inline-block}
+.hero-title.in .wi{animation:word-in calc(var(--dur,350ms) * 2) cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--k) * 70ms)}
+.hero-title.out .wi{animation:word-out 340ms cubic-bezier(.6,0,.8,.4) forwards;animation-delay:calc(var(--k) * 35ms)}
+@keyframes word-in{from{transform:translateY(115%) rotate(4deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes word-out{to{transform:translateY(-115%);opacity:0}}
+.hero-sub.sub-in{animation:sub-in calc(var(--dur,350ms) * 2) ease both;animation-delay:220ms}
+.hero-sub.sub-out{animation:sub-out 300ms ease forwards}
+@keyframes sub-in{from{opacity:0;transform:translateY(10px);filter:blur(4px)}}
+@keyframes sub-out{to{opacity:0;transform:translateY(-6px);filter:blur(3px)}}
+.hero-sub{font-size:clamp(1rem,1.6vw,1.25rem);color:rgba(255,255,255,.86);max-width:44ch;min-height:3.2em}
+.slide-fade{animation:cc-rise 600ms cubic-bezier(.2,.7,.2,1) both}
+.hero-ctas{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.5rem}
+.btn-solid,.btn-outline{padding:.8rem 1.5rem;font-weight:600;cursor:pointer;border-radius:2px;font-size:var(--t-sm);font-family:var(--body);transition:background .2s,color .2s,border-color .2s}
+.btn-solid{background:var(--brand);border:2px solid var(--brand);color:var(--brand-ink)}
+.btn-solid:hover{filter:brightness(1.08)}
+.btn-outline{background:transparent;border:2px solid #fff;color:#fff}
+.btn-outline:hover{background:#fff;color:#1B1A17}
+.dots{display:flex;gap:.5rem;margin-top:1.75rem}
+.dots button{position:relative;overflow:hidden;width:10px;height:10px;border-radius:5px;border:none;background:rgba(255,255,255,.4);cursor:pointer;padding:0;transition:width .4s cubic-bezier(.2,.8,.2,1),background .3s}
+.dots button[aria-current="true"]{background:rgba(255,255,255,.28);width:48px}
+.dots .bar{position:absolute;top:0;bottom:0;inset-inline-start:0;width:0;background:var(--brand);border-radius:inherit}
+.dots button[aria-current="true"] .bar{animation:dot-fill 6s linear forwards}
+.dots:hover .bar{animation-play-state:paused}
+@keyframes dot-fill{to{width:100%}}
+.glass{background:rgba(18,16,13,.66);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.14);border-top:3px solid var(--brand);border-radius:var(--r);padding:1.6rem;color:#F2F0EA;max-width:none}
+.glass h2{color:#fff}
+.glass .muted,.glass .note{color:rgba(255,255,255,.66)}
+.glass .tabs{border-color:rgba(255,255,255,.18)}
+.glass .tab{color:rgba(255,255,255,.6)}
+.glass .tab[aria-selected="true"]{color:#fff;border-color:var(--brand)}
+.glass .field label{color:rgba(255,255,255,.82)}
+.glass .input{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.22);color:#fff}
+.glass .input::placeholder{color:rgba(255,255,255,.4)}
+.glass .input:focus{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 30%,transparent)}
+.glass .field .msg{color:#FFA89C}
+.glass .field.err .input{border-color:#FFA89C;box-shadow:none}
+.glass .form-err{background:rgba(255,90,70,.16);color:#FFB8AE}
+.about{background:var(--bg);color:var(--ink);padding:clamp(2.5rem,6vw,4.5rem) clamp(1rem,4vw,3rem);scroll-margin-top:1rem}
+.about-grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(1.5rem,5vw,4rem)}
+.about .eyebrow{color:var(--accent);letter-spacing:.14em;font-weight:600;text-transform:uppercase}
+.about h2{font-size:clamp(1.6rem,3vw,2.4rem);margin:.35rem 0 .9rem}
+.about .lead{font-size:var(--t-lg);line-height:1.75;max-width:50ch}
+.about .more{color:var(--ink-2);max-width:56ch;margin-top:.8rem;line-height:1.75}
+.who-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem}
+.who-chips span{border:1px solid var(--line);background:var(--raised);padding:.25rem .8rem;border-radius:99px;font-size:var(--t-sm)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.85rem}
+.steps li{display:grid;grid-template-columns:3rem minmax(0,1fr);gap:1rem;align-items:start;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:1rem 1.1rem}
+.steps .n{width:3rem;height:3rem;display:grid;place-items:center;background:var(--brand);color:var(--brand-ink);font-family:var(--display);font-weight:800;font-size:1.3rem;border-radius:var(--r)}
+.steps b{font-family:var(--display);font-size:var(--t-md);display:block;margin-bottom:.15rem}
+.steps li span:not(.n){color:var(--ink-2);font-size:var(--t-sm);line-height:1.7}
+.gets{max-width:1180px;margin:2.25rem auto 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.gets div{background:var(--raised);padding:1.1rem;display:flex;flex-direction:column;gap:.25rem}
+.gets .k{font-family:var(--display);font-weight:700;font-size:1.35rem}
+.gets .d{font-size:var(--t-xs);color:var(--muted)}
+.about-note{max-width:1180px;margin:1rem auto 0;font-size:var(--t-sm);color:var(--muted)}
+.landing .site-foot{border-radius:0;margin:0;border-top:1px solid rgba(255,255,255,.08)}
+@media (max-width:900px){
+  .hero-inner{grid-template-columns:minmax(0,1fr)}
+  .about-grid{grid-template-columns:minmax(0,1fr)}
+  .gets{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:440px){.topnav .nav-text{display:none}}
+
+/* ---------- MOTION (driven by the design panel) ---------- */
+@keyframes cc-fade{from{opacity:0}}
+@keyframes cc-rise{from{opacity:0;transform:translateY(14px)}}
+@keyframes cc-slide{from{opacity:0;transform:translateX(calc(var(--dir,1) * 28px))}}
+@keyframes cc-zoom{from{opacity:0;transform:scale(.96)}}
+[dir="rtl"]{--dir:-1}
+.enter>*{animation:var(--enter-anim,none) var(--dur,350ms) cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 60ms)}
+.btn,.proj,.panel,.chip,.mode-switch button{transition:transform var(--dur,350ms) ease,box-shadow var(--dur,350ms) ease,background .15s,border-color .15s,color .15s}
+[data-hover="1"] .btn:not([disabled]):hover,[data-hover="1"] .mode-switch button:hover{transform:translateY(-2px)}
+[data-hover="1"] .proj:hover,[data-hover="1"] .panel:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+
+/* ---------- DESIGN PANEL ---------- */
+.designer{position:fixed;top:0;bottom:0;inset-inline-end:0;width:min(340px,100%);background:var(--raised);color:var(--ink);border-inline-start:1px solid var(--line);box-shadow:0 0 40px rgba(0,0,0,.22);z-index:80;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);font-family:var(--body)}
+.dz-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.85rem 1rem;background:var(--charcoal);color:var(--on-dark)}
+.dz-head b{font-family:var(--display);font-size:var(--t-md)}
+.dz-close{background:none;border:none;color:inherit;font-size:1.5rem;line-height:1;cursor:pointer;padding:0 .25rem}
+.dz-body{overflow:auto;flex:1;padding:1rem;display:flex;flex-direction:column;gap:1.4rem}
+.dz-sec{display:flex;flex-direction:column;gap:.75rem}
+.dz-sec h4{margin:0;font-family:var(--display);font-size:var(--t-sm);color:var(--ink);padding-bottom:.35rem;border-bottom:1px solid var(--line-2)}
+.dz-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;font-size:var(--t-sm)}
+.dz-color{display:flex;gap:.4rem;align-items:center}
+.dz-color input[type="color"]{width:36px;height:30px;border:1px solid var(--line);border-radius:4px;padding:2px;background:var(--raised);cursor:pointer}
+.dz-color input[type="text"]{width:6rem;font-family:var(--mono);font-size:var(--t-xs);padding:.3rem .4rem;border:1px solid var(--line);border-radius:4px;background:var(--raised);direction:ltr;text-align:left}
+.dz-color input.bad{border-color:var(--bad)}
+.dz-range{display:flex;flex-direction:column;gap:.2rem;font-size:var(--t-sm)}
+.dz-range .top{display:flex;justify-content:space-between;gap:.5rem}
+.dz-range output{font-family:var(--mono);font-size:var(--t-xs);color:var(--muted);direction:ltr}
+.dz-range input{width:100%;accent-color:var(--brand)}
+.dz-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.dz-preset{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:.5rem;cursor:pointer;display:flex;flex-direction:column;gap:.35rem;text-align:start;font-size:var(--t-xs);color:var(--ink)}
+.dz-preset:hover{border-color:var(--ink-2)}
+.dz-preset .sw{display:flex;height:18px;border-radius:3px;overflow:hidden}
+.dz-preset .sw i{flex:1}
+.dz-check{display:flex;align-items:center;gap:.5rem;font-size:var(--t-sm);cursor:pointer}
+.dz-check input{width:18px;height:18px;accent-color:var(--brand)}
+.dz-foot{border-top:1px solid var(--line);padding:.75rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:var(--t-xs);color:var(--muted);flex-wrap:wrap}
+
+/* ---------- FOOTER ---------- */
+.site-foot{background:var(--charcoal);color:var(--on-dark);border-radius:var(--r);padding:1.75rem clamp(1.25rem,3vw,2rem);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:1.25rem;margin-top:1rem}
+.foot-brand{display:flex;flex-direction:column;gap:.55rem}
+.foot-name{font-family:"Instrument Serif",Georgia,"Times New Roman",serif;font-style:italic;font-size:2.4rem;line-height:1;direction:ltr;text-align:start}
+.foot-by{color:var(--on-dark-2);font-size:var(--t-sm)}
+.socials{display:flex;gap:.5rem}
+.socials a{width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);color:var(--on-dark);border-radius:2px;transition:border-color .15s,color .15s}
+.socials a:hover,.socials a:focus-visible{border-color:var(--brand);color:var(--brand)}
+.socials svg{width:20px;height:20px}
+.foot-copy{font-size:var(--t-xs);color:var(--on-dark-2)}
+.auth .site-foot{grid-column:1/-1;border-radius:0;margin:0}
+@media (max-width:860px){
+  body .mobile-bar{background:var(--charcoal);border-color:var(--charcoal);color:var(--on-dark)}
+  body .mobile-bar nav button{color:var(--on-dark-2)}
+  body .mobile-bar nav button[aria-current="page"]{background:var(--brand);color:var(--brand-ink)}
+}
+.ratio-dot.out{background:var(--bad)}
+.ratio-axis{display:flex;justify-content:space-between;font-size:var(--t-xs);color:var(--muted)}
+.legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:var(--t-xs);color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:.35rem;vertical-align:-1px}
+
+.projects{display:flex;flex-direction:column;gap:.75rem}
+.proj{background:var(--raised);border:1px solid var(--line);border-radius:var(--r)}
+.proj-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:1rem;align-items:center;padding:.85rem 1.1rem;cursor:pointer}
+.proj-head:hover{background:var(--surface)}
+.proj-title{display:flex;flex-direction:column;min-width:0}
+.proj-title b{font-family:var(--display);font-weight:600;font-size:var(--t-md)}
+.proj-title span{font-size:var(--t-xs);color:var(--muted)}
+.qty{display:flex;flex-direction:column;align-items:flex-end;font-size:var(--t-xs);color:var(--muted)}
+.qty .num{font-size:var(--t-md);color:var(--ink)}
+.qty.steel .num{color:var(--rebar)}
+.chev{transition:transform .2s;color:var(--muted)}
+.proj.open .chev{transform:rotate(180deg)}
+.proj-body{border-top:1px solid var(--line-2);padding:.75rem 1.1rem 1rem;display:flex;flex-direction:column;gap:.75rem}
+.pill{display:inline-block;font-size:.6875rem;padding:.05rem .5rem;border-radius:99px;background:var(--warn-soft);color:var(--warn);font-weight:600;margin-inline-start:.4rem;vertical-align:1px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:var(--t-sm)}
+th{font-weight:500;color:var(--muted);font-size:var(--t-xs);text-align:start;padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+td{padding:.5rem;border-bottom:1px solid var(--line-2);vertical-align:middle}
+td.n,th.n{text-align:left}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;font-size:var(--t-xs);padding:.05rem .45rem;border:1px solid var(--line);border-radius:4px;color:var(--ink-2);white-space:nowrap}
+.proj-actions{display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:2rem 1.25rem;text-align:center;display:flex;flex-direction:column;gap:.75rem;align-items:center;background:var(--surface)}
+.empty p{max-width:46ch;color:var(--ink-2)}
+
+/* ---------- CALCULATOR ---------- */
+.el-tabs{display:flex;gap:.35rem;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);padding:.3rem;border-radius:calc(var(--r) + 2px);width:fit-content;max-width:100%}
+.el-tabs button{background:none;border:none;padding:.45rem .9rem;border-radius:var(--r);cursor:pointer;color:var(--ink-2);font-weight:500;display:flex;align-items:center;gap:.45rem}
+.el-tabs button svg{width:16px;height:16px}
+.el-tabs button[aria-selected="true"]{background:var(--raised);color:var(--accent);box-shadow:var(--shadow)}
+.calc{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:1.25rem;align-items:start}
+.sheet{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:1.2rem;display:flex;flex-direction:column;gap:1.25rem}
+fieldset{border:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem}
+legend{font-family:var(--display);font-weight:600;font-size:var(--t-md);padding:0;margin-bottom:.1rem;display:flex;gap:.5rem;align-items:baseline}
+legend small{font-family:var(--body);font-weight:400;color:var(--muted);font-size:var(--t-xs)}
+.grid-f{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.hint{font-size:var(--t-xs);color:var(--muted);background:var(--surface);border-radius:var(--r);padding:.55rem .75rem;border-inline-start:3px solid var(--line)}
+
+.results{display:flex;flex-direction:column;gap:1rem;position:sticky;top:calc(env(safe-area-inset-top,0px) + 1rem)}
+.drawing{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.drawing-head{display:flex;justify-content:space-between;padding:.55rem .85rem;border-bottom:1px solid var(--line-2);font-size:var(--t-xs);color:var(--muted)}
+.drawing-body{background-color:var(--raised);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:16px 16px;padding:.75rem;display:flex;justify-content:center}
+.drawing svg{width:100%;max-width:380px;height:auto;display:block}
+
+.boq{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.boq-top{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}
+.boq-top>div{padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.15rem}
+.boq-top>div+div{border-inline-start:1px solid var(--line)}
+.big{font-family:var(--mono);font-size:2rem;font-weight:500;line-height:1.15;font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
+.big small{font-size:var(--t-sm);color:var(--muted);font-family:var(--body)}
+.big.steel{color:var(--rebar)}
+.boq-sec{padding:.8rem 1.1rem;border-bottom:1px solid var(--line-2);display:flex;flex-direction:column;gap:.45rem}
+.boq-sec:last-child{border-bottom:none}
+.kv{display:flex;justify-content:space-between;gap:1rem;font-size:var(--t-sm)}
+.kv span:first-child{color:var(--ink-2)}
+.boq-actions{display:flex;gap:.5rem;padding:.85rem 1.1rem;background:var(--surface);flex-wrap:wrap}
+.boq-actions .btn.primary{flex:1;justify-content:center}
+.status{display:flex;gap:.5rem;align-items:flex-start;font-size:var(--t-sm);padding:.6rem .8rem;border-radius:var(--r)}
+.status.ok{background:var(--ok-soft);color:var(--ok)}
+.status.warn{background:var(--warn-soft);color:var(--warn)}
+.status.bad{background:var(--bad-soft);color:var(--bad)}
+.status svg{width:16px;height:16px;flex:none;margin-top:3px}
+.blocked .boq-top,.blocked .boq-sec{opacity:.35}
+
+/* ---------- MODAL / TOAST / TIP ---------- */
+.overlay{position:fixed;inset:0;background:rgba(10,14,16,.45);display:grid;place-items:center;padding:1rem;z-index:50}
+.modal{background:var(--raised);border:1px solid var(--line);border-radius:calc(var(--r) + 2px);width:100%;max-width:440px;padding:1.3rem;display:flex;flex-direction:column;gap:1rem;box-shadow:var(--shadow)}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-start}
+.toast{position:fixed;bottom:calc(1.25rem + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:.6rem 1rem;border-radius:var(--r);font-size:var(--t-sm);z-index:60;box-shadow:var(--shadow)}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font-size:var(--t-xs);padding:.4rem .6rem;border-radius:4px;z-index:70;white-space:nowrap;line-height:1.5}
+.tip .num{font-size:var(--t-sm)}
+.mobile-bar{display:none}
+
+/* ---------- FINAL REPORT (BOQ sheet) ---------- */
+.report{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:clamp(1rem,3vw,2rem);display:flex;flex-direction:column;gap:1.5rem}
+.rep-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem 2rem;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:1rem}
+.rep-co input{font-family:var(--display);font-weight:700;font-size:clamp(1.2rem,2.4vw,1.7rem);color:var(--boq-title);border:1px dashed transparent;background:transparent;width:100%;padding:.2rem .3rem;border-radius:4px}
+.rep-co input:hover,.rep-co input:focus{border-color:var(--line);outline:none;background:var(--surface)}
+.rep-meta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.35rem .75rem;align-items:center;font-size:var(--t-sm)}
+.rep-meta label{font-weight:600}
+.rep-meta input{border:none;border-bottom:1px dotted var(--muted);background:transparent;padding:.15rem .2rem;min-width:0;width:100%}
+.rep-meta input:focus{outline:none;border-bottom:1px solid var(--accent)}
+.rep-sec{display:flex;flex-direction:column;gap:.6rem}
+.rep-sec h3{color:var(--boq-title);font-size:var(--t-lg)}
+.boq-t{border-collapse:collapse;width:100%;min-width:720px;font-size:var(--t-sm);border:2px solid var(--ink)}
+.boq-t th{background:var(--boq-head);color:var(--boq-head-ink);font-family:var(--display);font-weight:600;font-size:var(--t-sm);text-align:center;border:1px solid var(--ink);padding:.5rem .4rem}
+.boq-t td{border-inline:1px solid var(--ink);border-bottom:1px dashed var(--muted);padding:.45rem .5rem;text-align:center;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.boq-t td.desc{font-family:var(--body);text-align:center;font-weight:500}
+.boq-t td.tot{font-weight:600}
+.boq-t tfoot td{border-top:2px solid var(--ink);border-bottom:none;background:var(--surface);font-weight:600}
+.boq-t tfoot td.lbl{font-family:var(--display);text-align:start}
+.boq-t tr.grp td{background:var(--surface);font-family:var(--display);font-weight:600;text-align:start;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);color:var(--boq-title)}
+.boq-t tr.sub td{font-weight:600;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.boq-t tr.sub td.lbl{font-family:var(--body);text-align:start;font-size:var(--t-xs)}
+.ded{width:4.5rem;text-align:center;border:1px solid transparent;background:transparent;border-radius:4px;padding:.15rem;font-family:var(--mono)}
+.ded:hover{border-color:var(--line)}
+.ded:focus{outline:none;border-color:var(--accent);background:var(--raised)}
+.ded.bad{border-color:var(--bad);background:var(--bad-soft)}
+.rep-note{font-size:var(--t-xs);color:var(--muted)}
+.mode-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem;max-width:620px}
+.mode-switch button{display:flex;align-items:center;gap:.75rem;text-align:start;background:var(--raised);border:1.5px solid var(--line);border-radius:var(--r);padding:.75rem .95rem;cursor:pointer;color:var(--ink-2)}
+.mode-switch button svg{width:26px;height:26px;flex:none}
+.mode-switch button span{display:flex;flex-direction:column;line-height:1.35}
+.mode-switch button b{font-family:var(--display);font-weight:600;font-size:var(--t-md);color:var(--ink)}
+.mode-switch button small{font-size:var(--t-xs);color:var(--muted)}
+.mode-switch button:hover{border-color:var(--ink-2)}
+#mode-conc[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+#mode-steel[aria-selected="true"]{border-color:var(--rebar);background:var(--rebar-soft);color:var(--rebar)}
+.types{display:flex;flex-direction:column;gap:.55rem;padding-bottom:1rem;border-bottom:1px solid var(--line-2)}
+.types-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+.types-head small{color:var(--muted);font-size:var(--t-xs)}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem}
+.chip{display:inline-flex;align-items:center;border:1.5px solid var(--line);border-radius:99px;background:var(--surface);overflow:hidden}
+.chip button{background:none;border:none;cursor:pointer;color:var(--ink-2);font-weight:600;font-family:var(--display);padding:.3rem .8rem;font-size:var(--t-sm)}
+.chip .x{padding:.3rem .55rem .3rem .2rem;color:var(--muted);font-family:var(--body);font-weight:400}
+.chip .x:hover{color:var(--bad)}
+.chip.on{border-color:var(--accent);background:var(--accent-soft)}
+.chip.on button{color:var(--accent)}
+.chip.err{border-color:var(--bad)}
+.chip.err button:first-child{color:var(--bad)}
+.chip-add{border-style:dashed;background:transparent}
+.kind-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding-bottom:1rem;border-bottom:1px solid var(--line-2)}
+.kind-switch button{display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.65rem .8rem;border:1.5px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink-2);font-weight:600;cursor:pointer;font-family:var(--display)}
+.kind-switch button svg{width:22px;height:22px}
+.kind-switch button:hover{border-color:var(--ink-2)}
+.kind-switch button[aria-checked="true"]{border-color:var(--brand);background:var(--accent-soft);color:var(--accent)}
+.calc-sheet{padding:1rem;display:flex;flex-direction:column;gap:1.1rem}
+.calc-sheet .rep-sec h3{font-size:var(--t-md)}
+.calc-sheet .boq-t{min-width:480px;font-size:var(--t-xs)}
+.calc-sheet .boq-t th{font-size:var(--t-xs);padding:.4rem .3rem}
+.calc-sheet .boq-t td{padding:.4rem .35rem}
+.calc-sheet .boq-actions{margin:0 -1rem -1rem;border-top:1px solid var(--line)}
+.rep-sign{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;padding-top:1.5rem;font-size:var(--t-sm);text-align:center}
+.rep-sign div{border-top:1px solid var(--line);padding-top:.4rem;color:var(--ink-2)}
+@media (max-width:640px){.rep-top{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width:1100px){.calc{grid-template-columns:minmax(0,1fr)}.results{position:static}}
+@media (max-width:980px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.panels{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:860px){
+  .auth{grid-template-columns:minmax(0,1fr)}
+  .auth-sheet{order:-1;padding-block:2rem}
+  .sheet-calc{display:none}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .rail{display:none}
+  .mobile-bar{display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:.5rem 1rem;align-items:center;justify-content:space-between;gap:.5rem}
+  .mobile-bar nav{display:flex;gap:.25rem}
+  .mobile-bar nav button{background:none;border:none;padding:.4rem .6rem;border-radius:var(--r);font-weight:500;color:var(--ink-2);cursor:pointer;font-size:var(--t-sm)}
+  .mobile-bar nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+  .grid-f{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .proj-head{grid-template-columns:minmax(0,1fr) auto auto}
+  .proj-head .qty.c{display:none}
+}
+@media (max-width:440px){
+  .tiles{grid-template-columns:minmax(0,1fr)}
+  .boq-top{grid-template-columns:minmax(0,1fr)}
+  .boq-top>div+div{border-inline-start:none;border-top:1px solid var(--line)}
+  .hbar,.axis{grid-template-columns:4.5rem minmax(0,1fr) 4.5rem}
+}
+/* honour the device's reduce-motion setting unless the viewer switched motion back on in the design panel */
+@media (prefers-reduced-motion:reduce){html:not([data-motion="on"]) *{transition:none!important;animation:none!important}}
+</style>
+
+<div id="app" dir="rtl" lang="ar"></div>
+
+<script>
+(function(){
+
+/* ================== storage (local to this browser) ================== */
+const mem={};
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?(k in mem?mem[k]:d):JSON.parse(v)}catch(e){return k in mem?mem[k]:d}},
+  set(k,v){mem[k]=v;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  del(k){delete mem[k];try{localStorage.removeItem(k)}catch(e){}}
+};
+
+/* ================== language ================== */
+let LANG=store.get('cc.lang','ar')==='en'?'en':'ar';
+const L=(ar,en)=>LANG==='en'?en:ar;            // pick the string for the current language
+const tr=x=>Array.isArray(x)?L(x[0],x[1]):x;   // resolve an [ar,en] pair
+const listSep=()=>L('، ',', ');
+function applyLang(){
+  const app=document.getElementById('app');
+  app.dir=L('rtl','ltr');app.lang=LANG;
+  document.documentElement.lang=LANG;
+  document.title='ConcreteCalc';
+}
+
+/* ================== helpers ================== */
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=(n,d=2)=>Number.isFinite(n)?n.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:d}):'—';
+const fmtF=(n,d=2)=>Number.isFinite(n)?n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const today=()=>new Date().toISOString().slice(0,10);
+const fmtDate=s=>{try{return new Date(s).toLocaleDateString(L('ar-EG-u-nu-latn','en-GB'),{year:'numeric',month:'short',day:'numeric'})}catch(e){return s}};
+const numObj=o=>Object.fromEntries(Object.entries(o||{}).map(([k,x])=>[k,+x]));
+const sum=(a,f)=>a.reduce((t,x)=>t+(typeof f==='function'?f(x):x[f]),0);
+const M3=()=>L('م³','m³');
+
+/* ================== engineering ================== */
+const DIAS=[8,10,12,14,16,18,20,22,25,32];
+const BAR_LEN=12;                         // stock bar length, m
+const wpm=d=>d*d/162;                     // kg per metre for bar Ø d (mm)
+const lap=d=>50*d/1000;                   // lap splice length, m
+const anch=d=>40*d/1000;                  // anchorage each end, m
+// length of one continuous run of bar, adding a lap for every 12 m stock length exceeded
+const runLen=(L_,d)=>L_+Math.max(0,Math.ceil(L_/BAR_LEN)-1)*lap(d);
+
+const ICONS={
+  column:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="3" width="8" height="18" rx="1"/><path d="M8 8h8M8 13h8M8 18h8"/></svg>',
+  tie:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="9" width="20" height="6" rx="1"/><path d="M7 9v6M12 9v6M17 9v6"/></svg>',
+  grade:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="12" width="20" height="7" rx="1"/><path d="M2 8h20" stroke-dasharray="2 2"/></svg>',
+  slab:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-5 9 5-9 5z"/><path d="M3 9v3l9 5 9-5V9"/></svg>',
+  footing:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="14" width="18" height="6" rx="1"/><rect x="9" y="4" width="6" height="10"/></svg>',
+  combined:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="14" width="20" height="6" rx="1"/><rect x="5" y="5" width="4" height="9"/><rect x="15" y="5" width="4" height="9"/></svg>',
+};
+
+const U={cm:['سم','cm'],m:['م','m'],m2:['م²','m²'],mm:['مم','mm'],no:['عدد','no.'],bars:['سيخ','bars'],none:['','']};
+// slabs can be entered by length × width (by 1) or by total area (by 2)
+const byArea=v=>+(v&&v.by)===2;
+// plan size used for bar counts and drawings; an area-only slab is treated as the square with the same area
+const slabXY=v=>byArea(v)?{Lx:Math.sqrt(+v.A||0),Ly:Math.sqrt(+v.A||0)}:{Lx:+v.Lx,Ly:+v.Ly};
+const F=(k,label,unit,min,max,step,extra={})=>Object.assign({k,label,unit,min,max,step},extra);
+const DIA=(k,label)=>({k,label,unit:U.mm,dia:true});
+const LAYERS=F('layers',['عدد الشبكات','Mesh layers'],U.none,1,2,1,{select:[[1,['شبكة سفلية فقط','Bottom mesh only']],[2,['سفلية وعلوية','Bottom and top']]]});
+const COUNT=F('n',['العدد','Count'],U.no,1,500,1);
+
+const ELEMENTS={
+  column:{
+    name:['الأعمدة','Columns'],prefix:['ع','C'],
+    hint:['طول السيخ الرأسي = الارتفاع + وصلة تراكب 50Ø لأشاير الدور التالي. الكانة بخطافين 135° بطول 10Ø لكل خطاف.',
+          'Vertical bar length = height + 50Ø lap for the starter bars of the next floor. Stirrups have two 135° hooks of 10Ø each.'],
+    groups:[
+      {t:['الأبعاد','Dimensions'],f:[COUNT,F('b',['العرض b','Width b'],U.cm,15,200,1),F('h',['الطول h','Depth h'],U.cm,15,300,1),F('H',['الارتفاع الصافي','Clear height'],U.m,.5,15,.05),F('c',['الغطاء الخرساني','Concrete cover'],U.cm,2,7.5,.5)]},
+      {t:['التسليح الرئيسي','Main reinforcement'],f:[F('nb',['عدد الأسياخ','Number of bars'],U.bars,4,60,1),DIA('db',['قطر السيخ','Bar diameter'])]},
+      {t:['الكانات','Stirrups'],f:[DIA('ds',['قطر الكانة','Stirrup diameter']),F('s',['المسافة بين الكانات','Stirrup spacing'],U.cm,5,30,.5)]},
+    ],
+    def:{n:12,b:30,h:50,H:3.2,c:4,nb:8,db:16,ds:8,s:15},
+    dims:v=>({n:v.n,L:v.b/100,W:v.h/100,H:v.H}),
+    check(v){const e={};
+      if(2*v.c>=v.b-2)e.c=L('الغطاء أكبر من نصف عرض العمود. قلّل الغطاء أو زد العرض.','Cover is more than half the column width. Reduce the cover or increase the width.');
+      const per=2*((v.b-2*v.c)+(v.h-2*v.c));
+      const maxBars=Math.floor(per/(v.db/10+2.5));
+      if(v.nb>maxBars)e.nb=L(`المقطع يتسع لـ ${maxBars} سيخ كحد أقصى بقطر ${v.db} مم.`,`The section fits at most ${maxBars} bars of Ø${v.db}.`);
+      if(v.s>Math.min(v.b,v.h))e.s=L('المسافة بين الكانات أكبر من أصغر بعد للعمود. قلّلها.','Stirrup spacing exceeds the smallest column dimension. Reduce it.');
+      return e},
+    calc(v){
+      const per=Math.ceil(v.H*100/v.s)+1;
+      return{conc:v.n*v.b*v.h*v.H/1e4,bars:[
+        {role:L('أسياخ رئيسية','Main bars'),d:v.db,count:v.n*v.nb,len:runLen(v.H+lap(v.db),v.db)},
+        {role:L('كانات','Stirrups'),d:v.ds,count:v.n*per,len:2*((v.b-2*v.c)+(v.h-2*v.c))/100+20*v.ds/1000}]};
+    }
+  },
+  tie:{
+    name:['السملات','Tie beams'],prefix:['س','TB'],
+    hint:['السملات تربط القواعد عند منسوب التأسيس. طول السيخ = الطول + تثبيت 40Ø من كل طرف داخل القاعدة.',
+          'Tie beams connect the footings at foundation level. Bar length = span + 40Ø anchorage into the footing at each end.'],
+    groups:beamGroups(),def:{n:10,b:30,h:60,L:4.5,c:5,nbB:4,dB:16,nbT:3,dT:14,ds:8,s:20},
+    dims:v=>({n:v.n,L:v.L,W:v.b/100,H:v.h/100}),check:beamCheck,calc:beamCalc
+  },
+  grade:{
+    name:['القريد بيم','Grade beams'],prefix:['ج','GB'],
+    hint:['الجسور الأرضية (Grade Beam) تحمل جدران الدور الأرضي. نفس معادلات الجسر: تثبيت 40Ø ووصلات تراكب 50Ø كل 12 م.',
+          'Grade beams carry the ground-floor walls. Same beam formulas: 40Ø anchorage and a 50Ø lap every 12 m.'],
+    groups:beamGroups(),def:{n:8,b:25,h:50,L:5,c:5,nbB:3,dB:14,nbT:3,dT:12,ds:8,s:20},
+    dims:v=>({n:v.n,L:v.L,W:v.b/100,H:v.h/100}),check:beamCheck,calc:beamCalc
+  },
+  slab:{
+    name:['الأسقف','Slabs'],prefix:['ب','S'],
+    hint:['بلاطة مصمتة. التسليح الرئيسي يمتد في الاتجاه القصير، والثانوي في الاتجاه الطويل، مع تثبيت 40Ø في الجسور من كل طرف.',
+          'Solid slab. Main bars run in the short direction and secondary bars in the long direction, with 40Ø anchorage into the beams at each end.'],
+    groups:[
+      {t:['الأبعاد','Dimensions'],f:[F('n',['العدد','Count'],U.no,1,50,1),
+        F('Lx',['الطول','Length'],U.m,1,60,.05,{when:v=>!byArea(v)}),F('Ly',['العرض','Width'],U.m,1,60,.05,{when:v=>!byArea(v)}),
+        F('A',['المساحة الكلية','Total area'],U.m2,1,10000,.01,{when:byArea}),
+        F('t',['سماكة البلاطة','Slab thickness'],U.cm,10,40,1)]},
+      {t:['التسليح الرئيسي (الاتجاه القصير)','Main bars (short direction)'],f:[DIA('d1',['القطر','Diameter']),F('s1',['المسافة','Spacing'],U.cm,7.5,30,.5)]},
+      {t:['التسليح الثانوي (الاتجاه الطويل)','Secondary bars (long direction)'],f:[DIA('d2',['القطر','Diameter']),F('s2',['المسافة','Spacing'],U.cm,7.5,30,.5)]},
+      {t:['الطبقات','Layers'],f:[LAYERS]},
+    ],
+    def:{by:1,n:1,Lx:12,Ly:9,A:108,t:15,d1:12,s1:15,d2:10,s2:20,layers:1},
+    // by area: the area sits in the length column (width 1) and the row is flagged so tables show it as one m² cell
+    dims:v=>byArea(v)?{n:v.n||1,L:v.A,W:1,H:v.t/100,area:true}:{n:v.n||1,L:v.Lx,W:v.Ly,H:v.t/100},
+    check(v){const e={},m=L(`المسافة تتجاوز 3 أضعاف السماكة (${3*v.t} سم).`,`Spacing exceeds 3× the thickness (${3*v.t} cm).`);
+      if(v.s1>3*v.t)e.s1=m;if(v.s2>3*v.t)e.s2=m;return e},
+    calc(v){
+      const n=v.n||1,{Lx,Ly}=slabXY(v),sh=Math.min(Lx,Ly),lg=Math.max(Lx,Ly);
+      const n1=Math.floor(lg*100/v.s1)+1, n2=Math.floor(sh*100/v.s2)+1;
+      return{conc:n*(byArea(v)?v.A:Lx*Ly)*v.t/100,bars:[
+        {role:L('رئيسي','Main'),d:v.d1,count:n*n1*v.layers,len:runLen(sh+2*anch(v.d1),v.d1)},
+        {role:L('ثانوي','Secondary'),d:v.d2,count:n*n2*v.layers,len:runLen(lg+2*anch(v.d2),v.d2)}]};
+    }
+  },
+  // each footing type is either isolated (kind 1) or combined (kind 2); groups tagged with `kinds` show only for that kind
+  footing:{
+    name:['الأساسات','Footings'],prefix:['ق','F'],
+    hint:['قاعدة منفصلة مع خرسانة عادية (نظافة) تبرز 10 سم من كل جانب. السيخ = البعد − 2×الغطاء + رجلين بطول 12Ø (15 سم على الأقل).',
+          'Isolated footing with a plain-concrete blinding layer projecting 10 cm on each side. Bar = dimension − 2×cover + two legs of 12Ø (at least 15 cm).'],
+    hint2:['قاعدة واحدة تحمل عمودين أو أكثر. لها شبكة سفلية وشبكة علوية لمقاومة العزم السالب بين الأعمدة، وكل سيخ = البعد − 2×الغطاء + رجلين بطول 12Ø (15 سم على الأقل)، مع وصلة تراكب 50Ø إذا زاد الطول عن 12 م.',
+          'One footing carrying two or more columns. It has a bottom mesh and a top mesh for the negative moment between the columns; each bar = dimension − 2×cover + two 12Ø legs (at least 15 cm), with a 50Ø lap if longer than 12 m.'],
+    groups:[
+      {t:['الأبعاد','Dimensions'],f:[COUNT,F('L',['الطول','Length'],U.m,.5,30,.05),F('W',['العرض','Width'],U.m,.5,10,.05),F('D',['السماكة','Thickness'],U.cm,25,200,1),F('c',['الغطاء الخرساني','Concrete cover'],U.cm,5,10,.5)]},
+      {t:['الشبكة','Mesh'],kinds:[1],f:[DIA('d',['القطر','Diameter']),F('s',['المسافة في الاتجاهين','Spacing both ways'],U.cm,10,30,.5),LAYERS]},
+      {t:['الأعمدة على القاعدة','Columns on the footing'],kinds:[2],f:[F('nc',['عدد الأعمدة','Number of columns'],U.no,2,6,1),F('sp',['المسافة بين الأعمدة','Column spacing'],U.m,.5,12,.05)]},
+      {t:['الشبكة السفلية','Bottom mesh'],kinds:[2],f:[DIA('dBL',['قطر الطولي','Long bars Ø']),F('sBL',['مسافة الطولي','Long bar spacing'],U.cm,10,30,.5),DIA('dBS',['قطر العرضي','Short bars Ø']),F('sBS',['مسافة العرضي','Short bar spacing'],U.cm,10,30,.5)]},
+      {t:['الشبكة العلوية','Top mesh'],kinds:[2],f:[DIA('dTL',['قطر الطولي','Long bars Ø']),F('sTL',['مسافة الطولي','Long bar spacing'],U.cm,10,30,.5),DIA('dTS',['قطر العرضي','Short bars Ø']),F('sTS',['مسافة العرضي','Short bar spacing'],U.cm,10,30,.5)]},
+      {t:['خرسانة النظافة','Blinding concrete'],f:[F('bt',['سماكة النظافة','Blinding thickness'],U.cm,0,20,1)]},
+    ],
+    def:{kind:1,n:12,L:1.8,W:1.6,D:60,c:7.5,d:16,s:15,layers:1,bt:10,nc:2,sp:3,dBL:16,sBL:15,dBS:14,sBS:20,dTL:14,sTL:20,dTS:12,sTS:25},
+    def2:{kind:2,n:2,L:4.4,W:1.8,D:70},
+    dims:v=>({n:v.n,L:v.L,W:v.W,H:v.D/100}),
+    plainDims:v=>v.bt>0?{n:v.n,L:v.L+.2,W:v.W+.2,H:v.bt/100}:null,
+    check(v){const e={};
+      if(2*v.c/100>=Math.min(v.L,v.W)-.1)e.c=L('الغطاء كبير بالنسبة لأبعاد القاعدة.','Cover is too large for the footing size.');
+      if(v.D<3*v.c)e.D=L('السماكة صغيرة جدًا بالنسبة للغطاء.','Thickness is too small for the cover.');
+      if(v.kind===2&&(v.nc-1)*v.sp>v.L-.4)e.sp=L(`الأعمدة لا تتسع: (${fmt(v.nc)}−1) × ${fmt(v.sp)} م أكبر من طول القاعدة ناقص 40 سم.`,`The columns don't fit: (${fmt(v.nc)}−1) × ${fmt(v.sp)} m is more than the footing length minus 40 cm.`);
+      return e},
+    calc(v){
+      const c=v.c/100,conc=v.n*v.L*v.W*v.D/100,plain=v.bt>0?v.n*(v.L+.2)*(v.W+.2)*v.bt/100:0;
+      if(v.kind===2){
+        const leg=d=>Math.max(.15,12*d/1000);
+        const across=s=>Math.floor((v.W-2*c)*100/s)+1, along=s=>Math.floor((v.L-2*c)*100/s)+1;
+        const longBar=d=>runLen(v.L-2*c+2*leg(d),d), shortBar=d=>v.W-2*c+2*leg(d);
+        return{conc,plain,bars:[
+          {role:L('سفلي طولي','Bottom long'),d:v.dBL,count:v.n*across(v.sBL),len:longBar(v.dBL)},
+          {role:L('سفلي عرضي','Bottom short'),d:v.dBS,count:v.n*along(v.sBS),len:shortBar(v.dBS)},
+          {role:L('علوي طولي','Top long'),d:v.dTL,count:v.n*across(v.sTL),len:longBar(v.dTL)},
+          {role:L('علوي عرضي','Top short'),d:v.dTS,count:v.n*along(v.sTS),len:shortBar(v.dTS)}]};
+      }
+      const leg=Math.max(.15,12*v.d/1000);
+      const nx=Math.floor((v.W-2*c)*100/v.s)+1, ny=Math.floor((v.L-2*c)*100/v.s)+1;
+      return{conc,plain,bars:[
+        {role:L('الاتجاه الطويل','Long direction'),d:v.d,count:v.n*nx*v.layers,len:runLen(v.L-2*c+2*leg,v.d)},
+        {role:L('الاتجاه القصير','Short direction'),d:v.d,count:v.n*ny*v.layers,len:v.W-2*c+2*leg}]};
+    }
+  }
+};
+const KIND_PREFIX=[null,['ق','F'],['قم','CF']];
+const kindOf=v=>+(v&&v.kind)===2?2:1;
+const groupOn=(g,v)=>!g.kinds||g.kinds.includes(kindOf(v));
+const isFoot=t=>t==='footing'||t==='combined';
+// one description of a footing's meshes and columns, shared by the plan, the section and the 3D model
+function footSpec(type,v){
+  if(kindOf(v)===2){
+    const off=(v.nc-1)*v.sp/2;
+    return{layers:[{top:false,dL:v.dBL,sL:v.sBL,dS:v.dBS,sS:v.sBS},{top:true,dL:v.dTL,sL:v.sTL,dS:v.dTS,sS:v.sTS}],
+      cols:Array.from({length:Math.round(v.nc)},(_,i)=>-off+i*v.sp),cw:Math.min(.4,v.L*.1),cd:Math.min(.6,v.W*.3)};
+  }
+  const lay=[{top:false,dL:v.d,sL:v.s,dS:v.d,sS:v.s}];if(v.layers===2)lay.push({top:true,dL:v.d,sL:v.s,dS:v.d,sS:v.s});
+  const cw=Math.min(v.L,v.W)*.22;
+  return{layers:lay,cols:[0],cw,cd:cw*1.4};
+}
+function beamGroups(){return[
+  {t:['الأبعاد','Dimensions'],f:[COUNT,F('b',['العرض b','Width b'],U.cm,15,100,1),F('h',['العمق h','Depth h'],U.cm,20,150,1),F('L',['الطول الصافي','Clear span'],U.m,.5,30,.05),F('c',['الغطاء الخرساني','Concrete cover'],U.cm,2.5,7.5,.5)]},
+  {t:['التسليح الطولي','Longitudinal bars'],f:[F('nbB',['أسياخ سفلية','Bottom bars'],U.bars,2,20,1),DIA('dB',['قطر السفلي','Bottom diameter']),F('nbT',['أسياخ علوية','Top bars'],U.bars,2,20,1),DIA('dT',['قطر العلوي','Top diameter'])]},
+  {t:['الكانات','Stirrups'],f:[DIA('ds',['قطر الكانة','Stirrup diameter']),F('s',['المسافة بين الكانات','Stirrup spacing'],U.cm,5,30,.5)]},
+]}
+function beamCheck(v){const e={};
+  if(2*v.c>=v.b-2)e.c=L('الغطاء أكبر من نصف العرض.','Cover is more than half the width.');
+  const clear=v.b-2*v.c-2*v.ds/10;
+  const m=L(`الأسياخ لا تتسع في صف واحد (المتاح ${fmt(clear,1)} سم). قلّل العدد أو زد العرض.`,`The bars don't fit in one layer (${fmt(clear,1)} cm available). Use fewer bars or a wider beam.`);
+  if(v.nbB*v.dB/10+(v.nbB-1)*2.5>clear)e.nbB=m;
+  if(v.nbT*v.dT/10+(v.nbT-1)*2.5>clear)e.nbT=m;
+  if(v.s>v.h/2+1)e.s=L('المسافة بين الكانات أكبر من نصف العمق.','Stirrup spacing exceeds half the depth.');
+  return e}
+function beamCalc(v){
+  const per=Math.ceil(v.L*100/v.s)+1;
+  return{conc:v.n*v.b*v.h*v.L/1e4,bars:[
+    {role:L('سفلي','Bottom'),d:v.dB,count:v.n*v.nbB,len:runLen(v.L+2*anch(v.dB),v.dB)},
+    {role:L('علوي','Top'),d:v.dT,count:v.n*v.nbT,len:runLen(v.L+2*anch(v.dT),v.dT)},
+    {role:L('كانات','Stirrups'),d:v.ds,count:v.n*per,len:2*((v.b-2*v.c)+(v.h-2*v.c))/100+20*v.ds/1000}]};
+}
+const elName=k=>tr(ELEMENTS[k].name);
+
+// typical steel ratio (kg per m³ of concrete) — rough reference band
+const RATIO={column:[120,220],tie:[90,160],grade:[90,160],slab:[60,110],footing:[40,100]};
+
+// which calculation a field belongs to: dimensions feed both, reinforcement and cover feed steel only
+function fieldUse(type,gi,f){
+  if(f.k==='c')return'steel';
+  if(isFoot(type)&&f.k==='bt')return'conc';
+  return gi===0?'both':'steel';
+}
+function visibleKeys(type,mode,v){
+  const s=new Set();
+  ELEMENTS[type].groups.forEach((g,gi)=>{if(groupOn(g,v))g.f.forEach(f=>{if(f.when&&!f.when(v||{}))return;const u=fieldUse(type,gi,f);if(u==='both'||u===mode)s.add(f.k)})});
+  return s;
+}
+function validate(type,v,mode){
+  const el=ELEMENTS[type],errs={};
+  for(const g of el.groups)if(groupOn(g,v))for(const f of g.f){
+    if(f.when&&!f.when(v))continue;
+    const raw=v[f.k];
+    if(f.dia){if(!DIAS.includes(+raw))errs[f.k]=L('اختر قطرًا من القائمة.','Choose a diameter from the list.');continue}
+    if(f.select)continue;
+    if(raw===''||raw==null||isNaN(+raw)){errs[f.k]=L('أدخل رقمًا.','Enter a number.');continue}
+    const n=+raw;
+    if(n<f.min)errs[f.k]=L(`القيمة الدنيا ${fmt(f.min)} ${tr(f.unit)}.`,`Minimum is ${fmt(f.min)} ${tr(f.unit)}.`);
+    else if(n>f.max)errs[f.k]=L(`القيمة القصوى ${fmt(f.max)} ${tr(f.unit)}.`,`Maximum is ${fmt(f.max)} ${tr(f.unit)}.`);
+    else if(f.step===1&&!Number.isInteger(n))errs[f.k]=L('أدخل عددًا صحيحًا.','Enter a whole number.');
+  }
+  const all={...el.check(numObj(v)),...errs};
+  if(!mode){const on=visibleKeys(type,'conc',v);visibleKeys(type,'steel',v).forEach(k=>on.add(k));
+    return Object.fromEntries(Object.entries(all).filter(([k])=>on.has(k)))}
+  const vis=visibleKeys(type,mode,v);
+  return Object.fromEntries(Object.entries(all).filter(([k])=>vis.has(k)));
+}
+
+// one type (e.g. column C1)
+function compute(type,inputs){
+  const r=ELEMENTS[type].calc(numObj(inputs));
+  for(const b of r.bars){b.total=b.count*b.len;b.kg=b.total*wpm(b.d)}
+  return{conc:r.conc,plain:r.plain||0,steel:sum(r.bars,'kg'),bars:r.bars};
+}
+// all types of one element
+function computeMulti(type,types){
+  const parts=types.map(t=>({name:t.name,inputs:t.inputs,...compute(type,t.inputs)}));
+  const conc=sum(parts,'conc'),plain=sum(parts,'plain'),steel=sum(parts,'steel');
+  const by={};
+  for(const p of parts)for(const b of p.bars){const o=by[b.d]||(by[b.d]={d:b.d,len:0,kg:0});o.len+=b.total;o.kg+=b.kg}
+  const dias=Object.values(by).sort((a,b)=>a.d-b.d).map(o=>({...o,bars12:Math.ceil(o.len/BAR_LEN)}));
+  return{parts,conc,plain,steel,ratio:conc?steel/conc:0,dias};
+}
+const stripR=M=>({conc:M.conc,plain:M.plain,steel:M.steel,ratio:M.ratio,dias:M.dias});
+
+/* ================== auth (accounts kept in this browser only) ================== */
+async function hash(pw,salt){
+  try{const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+':'+pw));
+    return[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+  catch(e){let h=5381;const s=salt+':'+pw;for(let i=0;i<s.length;i++)h=(h*33^s.charCodeAt(i))>>>0;return'f'+h.toString(16)}
+}
+const users=()=>store.get('cc.users',{});
+const dataKey=e=>'cc.data.'+e;
+
+/* ================== app state ================== */
+const freshEl=type=>{const id=uid();return{list:[{id,name:tr(ELEMENTS[type].prefix)+'1',inputs:{...ELEMENTS[type].def}}],active:id}};
+const S={
+  view:'auth', authTab:'login', user:null, data:{projects:[]},
+  type:'column', mode:'conc', repMode:'conc', vals:{}, open:{}, modal:null
+};
+for(const k in ELEMENTS)S.vals[k]=freshEl(k);
+const E=()=>S.vals[S.type];
+const cur=()=>{const e=E();return e.list.find(t=>t.id===e.active)||e.list[0]};
+
+// bring saved data from older versions up to date: one item may hold several types; waste removed
+function normalize(data){
+  data=data&&Array.isArray(data.projects)?data:{projects:[]};
+  for(const p of data.projects){
+    // combined footings were briefly their own element; they are now footing types of kind 2
+    for(const it of p.items||[])if(it.type==='combined'){it.type='footing';(it.types||[]).forEach(t=>t.inputs={...(t.inputs||{}),kind:2})}
+    p.items=(p.items||[]).filter(it=>ELEMENTS[it.type]);
+    for(const it of p.items){
+      if(!Array.isArray(it.types))it.types=[{name:ELEMENTS[it.type].prefix[0]+'1',inputs:it.inputs||{}}];
+      delete it.inputs;delete it.waste;
+      it.types.forEach(t=>t.inputs={...ELEMENTS[it.type].def,...t.inputs});
+      it.r=stripR(computeMulti(it.type,it.types));
+    }
+  }
+  return data;
+}
+function load(){
+  const em=store.get('cc.session',null);
+  const u=em&&users()[em];
+  if(u){S.user={name:u.name,email:em};S.data=normalize(store.get(dataKey(em),null));S.view='dash'}
+}
+const save=()=>{if(S.user)store.set(dataKey(S.user.email),S.data)};
+
+/* ================== toast & tooltip ================== */
+let toastT;
+function toast(msg){let t=$('.toast');if(!t){t=document.createElement('div');t.className='toast';t.setAttribute('role','status');document.body.appendChild(t)}
+  t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+const tip=document.createElement('div');tip.className='tip';tip.hidden=true;document.body.appendChild(tip);
+document.addEventListener('mousemove',e=>{
+  const el=e.target.closest&&e.target.closest('[data-tip]');
+  if(!el){tip.hidden=true;return}
+  tip.innerHTML=el.dataset.tip;tip.hidden=false;
+  const w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=e.clientX-w/2,y=e.clientY-h-12;
+  x=Math.max(8,Math.min(innerWidth-w-8,x));if(y<8)y=e.clientY+16;
+  tip.style.left=x+'px';tip.style.top=y+'px';
+});
+
+/* ================== file export ================== */
+async function offerFile(filename,data){
+  let dl=null;
+  try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){dl=null}
+  if(dl){
+    try{await dl.save({filename,data});toast(L('تم حفظ الملف ','Saved ')+filename)}
+    catch(e){toast(e&&e.code==='declined'?L('أُلغي التنزيل.','Download cancelled.'):L('تعذّر تنزيل الملف في هذه النافذة.','The file could not be downloaded in this window.'))}
+    return;
+  }
+  try{
+    const a=document.createElement('a');a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type:'text/plain;charset=utf-8'}));
+    a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+    toast(L('تم تجهيز الملف ','Prepared ')+filename);
+  }catch(e){toast(L('تعذّر تنزيل الملف في هذه النافذة.','The file could not be downloaded in this window.'))}
+}
+async function copyText(text){
+  const ok=L('نُسخ الملخص إلى الحافظة.','Summary copied to the clipboard.');
+  try{await navigator.clipboard.writeText(text);toast(ok)}
+  catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    let done=false;try{done=document.execCommand('copy')}catch(_){}
+    ta.remove();toast(done?ok:L('تعذّر النسخ. حدّد النص يدويًا.','Copy failed. Select the text manually.'))}
+}
+const fileSafe=s=>String(s).replace(/[\\/:*?"<>|]+/g,'-').trim()||'project';
+
+/* ================== aggregates ================== */
+function projTotals(p){
+  const t={conc:0,plain:0,steel:0,dias:{}};
+  for(const it of p.items){t.conc+=it.r.conc;t.plain+=it.r.plain||0;t.steel+=it.r.steel;
+    for(const d of it.r.dias){const o=t.dias[d.d]||(t.dias[d.d]={d:d.d,len:0,kg:0});o.len+=d.len;o.kg+=d.kg}}
+  t.dias=Object.values(t.dias).sort((a,b)=>a.d-b.d).map(o=>({...o,bars12:Math.ceil(o.len/BAR_LEN)}));
+  return t;
+}
+function allTotals(){
+  const by={};for(const k in ELEMENTS)by[k]={conc:0,steel:0,count:0};
+  let conc=0,steel=0,plain=0,items=0;
+  for(const p of S.data.projects)for(const it of p.items){
+    const o=by[it.type];o.conc+=it.r.conc;o.steel+=it.r.steel;o.count++;
+    conc+=it.r.conc;steel+=it.r.steel;plain+=it.r.plain||0;items++;
+  }
+  return{by,conc,steel,plain,items};
+}
+
+/* ================== drawings ================== */
+function svgText(x,y,t,o=''){return`<text x="${x}" y="${y}" fill="var(--muted)" font-family="IBM Plex Mono,monospace" font-size="11" text-anchor="middle" ${o}>${t}</text>`}
+function dimH(x1,x2,y,label){return`<path d="M${x1} ${y}H${x2}M${x1} ${y-4}v8M${x2} ${y-4}v8" stroke="var(--muted)" stroke-width="1" fill="none"/>`+svgText((x1+x2)/2,y-6,label)}
+function dimV(y1,y2,x,label){return`<path d="M${x} ${y1}V${y2}M${x-4} ${y1}h8M${x-4} ${y2}h8" stroke="var(--muted)" stroke-width="1" fill="none"/>`+svgText(x-8,(y1+y2)/2,label,`transform="rotate(-90 ${x-8} ${(y1+y2)/2})"`)}
+
+function drawSection(type,v){
+  v=numObj(v);if(type==='slab')Object.assign(v,slabXY(v));
+  const W=380,Hh=260;
+  if(type==='column'||type==='tie'||type==='grade'){
+    const b=v.b,h=v.h;
+    const sc=Math.min(240/b,190/h);
+    const w=b*sc,hh=h*sc,x0=(W-w)/2+10,y0=(Hh-hh)/2+8;
+    const c=v.c*sc;
+    let s=`<rect x="${x0}" y="${y0}" width="${w}" height="${hh}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.6"/>`;
+    s+=`<rect x="${x0+c}" y="${y0+c}" width="${w-2*c}" height="${hh-2*c}" rx="3" fill="none" stroke="var(--rebar)" stroke-width="${Math.max(1.4,(v.ds||8)/10*sc*.5)}"/>`;
+    const ix=x0+c,iy=y0+c,iw=w-2*c,ih=hh-2*c;
+    if(type==='column'){
+      const n=Math.max(4,Math.round(v.nb));let r=n-4;
+      const sides=[0,0];let toggle=iw>=ih?0:1;
+      while(r>=2){sides[toggle]++;r-=2;toggle=iw/(sides[0]+1)<ih/(sides[1]+1)?1:0}
+      const pts=[[ix,iy],[ix+iw,iy],[ix,iy+ih],[ix+iw,iy+ih]];
+      for(let i=1;i<=sides[0];i++){const x=ix+iw*i/(sides[0]+1);pts.push([x,iy],[x,iy+ih])}
+      for(let i=1;i<=sides[1];i++){const y=iy+ih*i/(sides[1]+1);pts.push([ix,y],[ix+iw,y])}
+      if(r===1)pts.push([ix+iw/2,iy+ih]);
+      const rr=Math.max(3,v.db/20*sc);
+      s+=pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="${rr}" fill="var(--rebar)"/>`).join('');
+    }else{
+      const row=(n,d,y)=>{const rr=Math.max(3,d/20*sc);let o='';for(let i=0;i<n;i++){const x=n===1?ix+iw/2:ix+iw*i/(n-1);o+=`<circle cx="${x}" cy="${y}" r="${rr}" fill="var(--rebar)"/>`}return o};
+      s+=row(Math.round(v.nbT),v.dT,iy)+row(Math.round(v.nbB),v.dB,iy+ih);
+    }
+    s+=dimH(x0,x0+w,y0-10,fmt(b)+' cm')+dimV(y0,y0+hh,x0-14,fmt(h)+' cm');
+    return`<svg viewBox="0 0 ${W} ${Hh+10}" role="img" aria-label="${L('مقطع عرضي','Cross-section')}">${s}</svg>`;
+  }
+  const A=type==='slab'?v.Lx:v.L, B=type==='slab'?v.Ly:v.W;
+  const sc=Math.min(260/A,180/B);
+  const w=A*sc,hh=B*sc,x0=(W-w)/2+10,y0=(Hh-hh)/2+10;
+  let s='';
+  if(isFoot(type)&&v.bt>0){const o=.1*sc;s+=`<rect x="${x0-o}" y="${y0-o}" width="${w+2*o}" height="${hh+2*o}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3"/>`}
+  s+=`<rect x="${x0}" y="${y0}" width="${w}" height="${hh}" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.6"/>`;
+  // plan shows the bottom mesh: horizontal lines = long bars (spaced across the width), vertical lines = short bars
+  const comb=isFoot(type)&&kindOf(v)===2;
+  const sx=type==='slab'?(A<=B?v.s1:v.s2):comb?v.sBS:v.s, sy=type==='slab'?(A<=B?v.s2:v.s1):comb?v.sBL:v.s;
+  const cp=isFoot(type)?v.c/100*sc:3;
+  const lines=(step,len,horiz)=>{let o='';const n=Math.floor(len*100/step);const k=Math.max(1,Math.ceil(n/28));
+    for(let i=0;i<=n;i+=k){const p=Math.min(Math.max(i*step/100*sc,cp),(horiz?hh:w)-cp);
+      o+=horiz?`<line x1="${x0+cp}" x2="${x0+w-cp}" y1="${y0+p}" y2="${y0+p}"/>`:`<line y1="${y0+cp}" y2="${y0+hh-cp}" x1="${x0+p}" x2="${x0+p}"/>`}
+    return o};
+  s+=`<g stroke="var(--rebar)" stroke-width="1" opacity=".85">${lines(sy,B,true)}${lines(sx,A,false)}</g>`;
+  if(isFoot(type)){const F_=footSpec(type,v),cw=F_.cw*sc,cd=F_.cd*sc;
+    for(const cx of F_.cols)s+=`<rect x="${x0+w/2+cx*sc-cw/2}" y="${y0+hh/2-cd/2}" width="${cw}" height="${cd}" fill="var(--raised)" stroke="var(--ink-2)" stroke-dasharray="3 2"/>`;
+    if(comb&&F_.cols.length>1)s+=dimH(x0+w/2+F_.cols[0]*sc,x0+w/2+F_.cols[1]*sc,y0+hh+16,fmt(v.sp)+' m');}
+  if(type==='slab'&&byArea(v))s+=svgText(x0+w/2,y0-10,`A = ${fmt(v.A)} m² (≈ ${fmt(A,2)} × ${fmt(B,2)} m)`);
+  else s+=dimH(x0,x0+w,y0-14,fmt(A)+' m')+dimV(y0,y0+hh,x0-18,fmt(B)+' m');
+  return`<svg viewBox="0 0 ${W} ${Hh+10}" role="img" aria-label="${L('مسقط أفقي للتسليح','Reinforcement plan')}">${s}</svg>`;
+}
+
+/* ================== 2D section views (vertical / longitudinal cuts) ================== */
+function drawCut(type,v){
+  v=numObj(v);if(type==='slab')Object.assign(v,slabXY(v));
+  const W=380,Hh=270;
+  const ink='var(--ink)',reb='var(--rebar)',mut='var(--muted)';
+  const T=(x,y,t,a='middle',o='')=>`<text x="${x}" y="${y}" fill="${mut}" font-family="IBM Plex Mono,monospace" font-size="10.5" text-anchor="${a}" ${o}>${t}</text>`;
+  const ln=(x1,y1,x2,y2,w=1.6,c=reb,extra='')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
+  const dot=(x,y,r)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${reb}"/>`;
+  const rect=(x,y,w,h,fill='var(--surface)',extra='')=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${ink}" stroke-width="1.6" ${extra}/>`;
+  const svg=(s,label)=>`<svg viewBox="0 0 ${W} ${Hh}" direction="ltr" role="img" aria-label="${label}">${s}</svg>`;
+  const spread=(n,a,b)=>n<=1?[(a+b)/2]:Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
+  const thin=(arr,max)=>{const k=Math.max(1,Math.ceil(arr.length/max));return arr.filter((_,i)=>i%k===0||i===arr.length-1)};
+  let s='';
+
+  if(isFoot(type)){
+    // cut along the footing length: long bars as lines with legs, short bars as dots beside them
+    const F_=footSpec(type,v);
+    const L_=v.L,D=v.D/100,c=v.c/100,bt=v.bt/100,stub=D*.7;
+    const sc=Math.min(290/(L_+.2),150/(D+bt+stub));
+    const w=L_*sc,h=D*sc,x0=(W-w)/2+12,yT=36+stub*sc,yB=yT+h,mid=x0+w/2;
+    const cw=F_.cw*sc;
+    for(const cx of F_.cols)s+=rect(mid+cx*sc-cw/2,yT-stub*sc,cw,stub*sc,'var(--raised)','stroke-dasharray="4 3"');
+    if(bt>0)s+=rect(x0-.1*sc,yB,w+.2*sc,bt*sc,'var(--line-2)');
+    s+=rect(x0,yT,w,h);
+    const cp=c*sc;
+    for(const ly of F_.layers){
+      const up=ly.top?-1:1,y=ly.top?yT+cp:yB-cp;
+      // sc is px per metre and d is in mm: radius = d/2000 m, drawn a little larger so thin bars stay visible
+      const rL=Math.min(6,Math.max(2,ly.dL/2000*sc*1.6)),rS=Math.min(6,Math.max(2,ly.dS/2000*sc*1.6));
+      const lg=Math.max(.15,12*ly.dL/1000)*sc;
+      s+=`<polyline points="${x0+cp},${y-up*lg} ${x0+cp},${y} ${x0+w-cp},${y} ${x0+w-cp},${y-up*lg}" fill="none" stroke="${reb}" stroke-width="${Math.max(1.6,rL*.9)}" stroke-linejoin="round"/>`;
+      for(const x of thin(spread(Math.floor((L_-2*c)*100/ly.sS)+1,x0+cp+rS+2,x0+w-cp-rS-2),30))s+=dot(x,y-up*(rL+rS),rS);
+    }
+    s+=dimH(x0,x0+w,yT-stub*sc-10,fmt(L_)+' m')+dimV(yT,yB,x0-16,fmt(v.D)+' cm');
+    if(bt>0)s+=T(x0+w+.1*sc+4,yB+bt*sc/2+4,`${fmt(v.bt)} cm`,'start');
+    if(kindOf(v)===2){
+      s+=T(W/2+12,yB+bt*sc+15,`${L('سفلي','Bottom')} Ø${v.dBL}@${fmt(v.sBL)} / Ø${v.dBS}@${fmt(v.sBS)} · ${L('علوي','Top')} Ø${v.dTL}@${fmt(v.sTL)} / Ø${v.dTS}@${fmt(v.sTS)}`);
+      s+=T(W/2+12,yB+bt*sc+30,`${fmt(v.nc)} ${L('أعمدة','columns')} @ ${fmt(v.sp)} m · c = ${fmt(v.c)} cm`);
+    }else s+=T(W/2+12,yB+bt*sc+16,`Ø${v.d} @ ${fmt(v.s)} cm · c = ${fmt(v.c)} cm`);
+    return svg(s,L('قطاع رأسي في القاعدة','Vertical section through the footing'));
+  }
+  if(type==='slab'){
+    // a 2 m strip cut across the short span: main bars along the cut, secondary bars as dots
+    const span=Math.min(v.Lx,v.Ly),strip=Math.min(span,2.2),t=v.t/100,c=.025;
+    const sc=Math.min(320/strip,110/t);
+    const w=strip*sc,h=t*sc,x0=(W-w)/2,yT=(Hh-h)/2-10,yB=yT+h;
+    s+=rect(x0,yT,w,h);
+    if(span>strip){ // break lines: the strip continues
+      const zz=x=>`<polyline points="${x},${yT-8} ${x-5},${yT+h*.35} ${x+5},${yT+h*.65} ${x},${yB+8}" fill="none" stroke="${mut}" stroke-width="1.2"/>`;
+      s+=zz(x0)+zz(x0+w);
+    }
+    const r1=Math.min(6,Math.max(2,v.d1/2000*sc*1.6)),r2=Math.min(6,Math.max(2,v.d2/2000*sc*1.6)),cp=c*sc;
+    const layer=(y,up)=>{
+      s+=ln(x0+4,y,x0+w-4,y,Math.max(2,r1*1.2));
+      for(const x of thin(spread(Math.floor(strip*100/v.s2)+1,x0+8,x0+w-8),28))s+=dot(x,y-up*(r1+r2),r2);
+    };
+    layer(yB-cp,1);if(v.layers===2)layer(yT+cp,-1);
+    s+=dimV(yT,yB,x0-14,fmt(v.t)+' cm');
+    s+=T(W/2,yB+30,`${L('رئيسي','Main')} Ø${v.d1} @ ${fmt(v.s1)} cm`);
+    s+=T(W/2,yB+46,`${L('ثانوي','Secondary')} Ø${v.d2} @ ${fmt(v.s2)} cm`);
+    s+=T(W/2,yT-14,`${L('شريحة','Strip')} ${fmt(strip)} m ${L('من بحر','of a span of')} ${fmt(span)} m`);
+    return svg(s,L('قطاع رأسي في البلاطة','Vertical section through the slab'));
+  }
+  if(type==='column'){
+    // elevation: vertical bars with starter bars above, stirrups along the height
+    const b=v.b/100,H=v.H,c=v.c/100,lp=lap(v.db);
+    const sy=Math.min(200/(H+lp)),sx=Math.max(sy,60/b);
+    const w=b*sx,h=H*sy,x0=(W-w)/2+14,yT=30+lp*sy,yB=yT+h;
+    s+=`<rect x="${x0-40}" y="${yB}" width="${w+80}" height="10" fill="var(--line-2)" stroke="${ink}" stroke-width="1"/>`;
+    s+=`<rect x="${x0-40}" y="${yT-8}" width="${w+80}" height="8" fill="var(--line-2)" stroke="${ink}" stroke-width="1" stroke-dasharray="4 3"/>`;
+    s+=rect(x0,yT,w,h);
+    const cp=c*sx,xs=[x0+cp,x0+w-cp];if(v.nb>4)xs.splice(1,0,x0+w/2);
+    for(const x of xs)s+=ln(x,yB,x,yT-lp*sy,2.2);
+    for(const y of thin(spread(Math.ceil(H*100/v.s)+1,yB-4,yT+4),36))s+=ln(x0+cp-3,y,x0+w-cp+3,y,1.2);
+    s+=dimV(yT,yB,x0-48,fmt(H)+' m')+dimH(x0,x0+w,yB+26,fmt(v.b)+' cm');
+    s+=T(x0+w+10,yT+h*.35,`${fmt(v.nb)}Ø${v.db}`,'start')+T(x0+w+10,yT+h*.35+14,`Ø${v.ds} @ ${fmt(v.s)}`,'start');
+    s+=T(x0+w+10,yT-lp*sy/2,`${L('أشاير','starters')} ${fmt(lp,2)} m`,'start');
+    return svg(s,L('قطاع طولي في العمود','Longitudinal section through the column'));
+  }
+  // tie / grade beam elevation: top and bottom bars run past the supports by the anchorage length
+  const L_=v.L,h_=v.h/100,c=v.c/100,an=Math.max(anch(v.dB),anch(v.dT));
+  const sx=300/(L_+2*an+.6),sy=Math.min(130/h_,Math.max(sx,70/h_));
+  const w=L_*sx,h=h_*sy,x0=(W-w)/2,yT=(Hh-h)/2-14,yB=yT+h,sup=.3*sx;
+  s+=rect(x0-sup,yT-12,sup,h+40,'var(--line-2)','stroke-dasharray="4 3"')+rect(x0+w,yT-12,sup,h+40,'var(--line-2)','stroke-dasharray="4 3"');
+  s+=rect(x0,yT,w,h);
+  const cy=c*sy,ax=an*sx;
+  s+=ln(x0-ax,yB-cy,x0+w+ax,yB-cy,2.4)+ln(x0-ax,yT+cy,x0+w+ax,yT+cy,2);
+  for(const x of thin(spread(Math.ceil(L_*100/v.s)+1,x0+4,x0+w-4),60))s+=ln(x,yT+cy-3,x,yB-cy+3,1.1);
+  s+=dimH(x0,x0+w,yT-22,fmt(L_)+' m')+dimV(yT,yB,x0-sup-12,fmt(v.h)+' cm');
+  s+=T(W/2,yB+28,`${L('سفلي','Bottom')} ${fmt(v.nbB)}Ø${v.dB} · ${L('علوي','Top')} ${fmt(v.nbT)}Ø${v.dT} · ${L('كانات','Stirrups')} Ø${v.ds} @ ${fmt(v.s)}`);
+  s+=T(W/2,yB+44,`${L('تثبيت','Anchorage')} 40Ø = ${fmt(an,2)} m`);
+  return svg(s,L('قطاع طولي في الجسر','Longitudinal section through the beam'));
+}
+
+/* ================== 3D model of the reinforcement (Three.js, one shared renderer) ================== */
+let threeP=null;
+function loadThree(){
+  if(window.THREE)return Promise.resolve(window.THREE);
+  if(!threeP)threeP=new Promise((res,rej)=>{const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    s.onload=()=>window.THREE?res(window.THREE):rej(new Error('no THREE'));s.onerror=()=>{threeP=null;rej(new Error('load failed'))};
+    document.head.appendChild(s)});
+  return threeP;
+}
+// one WebGL context for the whole session; each re-render swaps the model, the camera angle is kept
+// vel = current spin per frame; after a drag it carries the hand's momentum, then eases back to the idle spin
+const V3={r:null,scene:null,cam:null,group:null,theta:.75,phi:1.05,dist:4,size:1,raf:0,key:'',vel:.0035,dragging:false};
+const IDLE_SPIN=.0035;
+function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()})}
+function buildModel(T,type,v){
+  if(type==='slab')v={...v,...slabXY(v)};
+  const cs=getComputedStyle(document.documentElement),P=palette();
+  const steelCol=new T.Color(P.brand),inkCol=new T.Color(cs.getPropertyValue('--ink').trim()||'#1B1A17');
+  const G=new T.Group();
+  const conc=new T.MeshStandardMaterial({color:new T.Color('#A8A296'),transparent:true,opacity:.2,depthWrite:false,roughness:.95});
+  const plain=new T.MeshStandardMaterial({color:new T.Color('#7E786D'),transparent:true,opacity:.32,depthWrite:false,roughness:.95});
+  const edge=new T.LineBasicMaterial({color:inkCol,transparent:true,opacity:.75});
+  const steel=new T.MeshStandardMaterial({color:steelCol,roughness:.42,metalness:.35});
+  const V=(x,y,z)=>new T.Vector3(x,y,z);
+  const box=(w,h,d,x,y,z,mat,dashed)=>{const g=new T.BoxGeometry(w,h,d),m=new T.Mesh(g,mat);m.position.set(x,y,z);G.add(m);
+    const e=new T.LineSegments(new T.EdgesGeometry(g),dashed?new T.LineDashedMaterial({color:inkCol,dashSize:.04,gapSize:.03,transparent:true,opacity:.6}):edge);
+    e.position.copy(m.position);if(dashed)e.computeLineDistances();G.add(e)};
+  const bar=(a,b,r)=>{const d=new T.Vector3().subVectors(b,a),len=d.length();if(len<1e-4)return;
+    const m=new T.Mesh(new T.CylinderGeometry(r,r,len,8),steel);
+    m.position.copy(a).addScaledVector(d,.5);m.quaternion.setFromUnitVectors(V(0,1,0),d.normalize());G.add(m)};
+  const ring=(pts,r)=>pts.forEach((p,i)=>bar(p,pts[(i+1)%pts.length],r));
+  const R=d=>Math.max(.004,d/2000*1.5);               // bar radius, slightly exaggerated so thin bars stay visible
+  const spread=(n,a,b)=>n<=1?[(a+b)/2]:Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
+  const thin=(arr,max)=>{const k=Math.max(1,Math.ceil(arr.length/max));return arr.filter((_,i)=>i%k===0||i===arr.length-1)};
+
+  if(isFoot(type)){
+    const F_=footSpec(type,v);
+    const L_=v.L,W=v.W,D=v.D/100,c=v.c/100;
+    box(L_,D,W,0,D/2,0,conc);
+    if(v.bt>0){const bt=v.bt/100;box(L_+.2,bt,W+.2,0,-bt/2,0,plain)}
+    for(const cx of F_.cols)box(F_.cw,D*.9,F_.cd,cx,D+D*.45,0,conc,true);
+    for(const ly of F_.layers){
+      const up=ly.top?-1:1,rL=R(ly.dL),rS=R(ly.dS);
+      const y1=ly.top?D-c-rL:c+rL,y2=y1+up*(rL+rS);
+      const legL=Math.max(.15,12*ly.dL/1000),legS=Math.max(.15,12*ly.dS/1000);
+      // long bars (along the length), spaced across the width
+      for(const z of thin(spread(Math.floor((W-2*c)*100/ly.sL)+1,-W/2+c,W/2-c),45)){const a=V(-L_/2+c,y1,z),b=V(L_/2-c,y1,z);bar(a,b,rL);
+        bar(a,V(a.x,y1+up*legL,z),rL);bar(b,V(b.x,y1+up*legL,z),rL)}
+      // short bars (along the width), spaced along the length
+      for(const x of thin(spread(Math.floor((L_-2*c)*100/ly.sS)+1,-L_/2+c,L_/2-c),60)){const a=V(x,y2,-W/2+c),b=V(x,y2,W/2-c);bar(a,b,rS);
+        bar(a,V(x,y2+up*legS,a.z),rS);bar(b,V(x,y2+up*legS,b.z),rS)}
+    }
+  }else if(type==='column'){
+    const b=v.b/100,h=v.h/100,H=v.H,c=v.c/100,rm=R(v.db),rs=R(v.ds);
+    box(b,H,h,0,H/2,0,conc);
+    const ix=b/2-c-v.ds/1000-v.db/2000,iz=h/2-c-v.ds/1000-v.db/2000;
+    const pts=[[-ix,-iz],[ix,-iz],[-ix,iz],[ix,iz]];
+    let rem=Math.max(4,Math.round(v.nb))-4;const sides=[0,0];let tg=ix>=iz?0:1;
+    while(rem>=2){sides[tg]++;rem-=2;tg=(2*ix)/(sides[0]+1)<(2*iz)/(sides[1]+1)?1:0}
+    for(const x of spread(sides[0]+2,-ix,ix).slice(1,-1))pts.push([x,-iz],[x,iz]);
+    for(const z of spread(sides[1]+2,-iz,iz).slice(1,-1))pts.push([-ix,z],[ix,z]);
+    if(rem===1)pts.push([0,iz]);
+    const top=H+lap(v.db);                                  // starter bars for the next floor
+    for(const[x,z]of pts)bar(V(x,0,z),V(x,top,z),rm);
+    const sx=b/2-c-v.ds/2000,sz=h/2-c-v.ds/2000;
+    for(const y of thin(spread(Math.ceil(H*100/v.s)+1,.05,H-.05),40))ring([V(-sx,y,-sz),V(sx,y,-sz),V(sx,y,sz),V(-sx,y,sz)],rs);
+  }else if(type==='tie'||type==='grade'){
+    const L_=v.L,b=v.b/100,h=v.h/100,c=v.c/100,rs=R(v.ds);
+    box(L_,h,b,0,h/2,0,conc);
+    const zin=b/2-c-v.ds/1000;
+    const run=(n,d,y)=>{const r=R(d),ext=anch(d);for(const z of spread(Math.round(n),-zin+d/2000,zin-d/2000))bar(V(-L_/2-ext,y,z),V(L_/2+ext,y,z),r)};
+    run(v.nbB,v.dB,c+v.ds/1000+v.dB/2000);run(v.nbT,v.dT,h-c-v.ds/1000-v.dT/2000);
+    const sy=c+v.ds/2000,sz=b/2-c-v.ds/2000;
+    for(const x of thin(spread(Math.ceil(L_*100/v.s)+1,-L_/2+.05,L_/2-.05),60))ring([V(x,sy,-sz),V(x,h-sy,-sz),V(x,h-sy,sz),V(x,sy,sz)],rs);
+  }else{ // slab
+    const Lx=v.Lx,Ly=v.Ly,t=v.t/100,c=.025;
+    box(Lx,t,Ly,0,t/2,0,conc);
+    const shortX=Lx<=Ly,ys=[c];if(v.layers===2)ys.push(t-c);
+    for(const y0 of ys){
+      // main bars run along the short span, secondary along the long span
+      const mainR=R(v.d1),secR=R(v.d2);
+      const alongX=(r,s,y)=>{for(const z of thin(spread(Math.floor(Ly*100/s)+1,-Ly/2+.03,Ly/2-.03),60))bar(V(-Lx/2+.03,y,z),V(Lx/2-.03,y,z),r)};
+      const alongZ=(r,s,y)=>{for(const x of thin(spread(Math.floor(Lx*100/s)+1,-Lx/2+.03,Lx/2-.03),60))bar(V(x,y,-Ly/2+.03),V(x,y,Ly/2-.03),r)};
+      if(shortX){alongX(mainR,v.s1,y0);alongZ(secR,v.s2,y0+mainR+secR)}else{alongZ(mainR,v.s1,y0);alongX(secR,v.s2,y0+mainR+secR)}
+    }
+  }
+  return G;
+}
+function orbitBind(el){
+  let drag=null;
+  el.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};V3.dragging=true;V3.vel=0;el.setPointerCapture(e.pointerId);el.style.cursor='grabbing'});
+  el.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY};
+    const d=-dx*.008;V3.theta+=d;V3.vel=V3.vel*.5+d*.5;   // remember the hand's speed for the throw
+    V3.phi=Math.min(1.5,Math.max(.15,V3.phi-dy*.008))});
+  const up=()=>{drag=null;V3.dragging=false;el.style.cursor='';
+    V3.vel=Math.max(-.08,Math.min(.08,V3.vel))};          // cap a hard flick
+  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+  el.addEventListener('wheel',e=>{e.preventDefault();V3.dist=Math.min(V3.size*6,Math.max(V3.size*.7,V3.dist*(1+e.deltaY*.001)))},{passive:false});
+  el.addEventListener('dblclick',()=>{V3.dist=V3.size*2.1;V3.phi=1.05;V3.vel=IDLE_SPIN});
+}
+function tick3D(){
+  const c=V3.r&&V3.r.domElement;
+  if(!c||!c.isConnected){V3.raf=0;return}
+  if(!V3.dragging){
+    // glide on the released momentum, easing back into the automatic spin
+    const target=reducedMotion()?0:IDLE_SPIN;
+    V3.vel+=(target-V3.vel)*.035;V3.theta+=V3.vel;
+  }
+  const{theta,phi,dist}=V3;
+  V3.cam.position.set(dist*Math.sin(phi)*Math.sin(theta),dist*Math.cos(phi),dist*Math.sin(phi)*Math.cos(theta));
+  V3.cam.lookAt(0,0,0);V3.r.render(V3.scene,V3.cam);
+  V3.raf=requestAnimationFrame(tick3D);
+}
+function size3D(){
+  const c=V3.r&&V3.r.domElement,host=c&&c.parentElement;if(!host)return;
+  const w=host.clientWidth||360,h=Math.round(Math.min(340,Math.max(220,w*.68)));
+  V3.r.setSize(w,h,false);c.style.width='100%';c.style.height=h+'px';V3.cam.aspect=w/h;V3.cam.updateProjectionMatrix();
+}
+addEventListener('resize',()=>size3D());
+async function mount3D(host,type,inputs){
+  let T;
+  try{T=await loadThree()}catch(e){if(host.isConnected){S.view3d=false;host.innerHTML=drawSection(type,inputs);toast(L('تعذّر تحميل العرض ثلاثي الأبعاد. يظهر الرسم ثنائي الأبعاد.','3D view could not load. Showing the 2D drawing.'))}return}
+  if(!host.isConnected)return;
+  if(!V3.r){
+    try{V3.r=new T.WebGLRenderer({antialias:true,alpha:true})}catch(e){S.view3d=false;host.innerHTML=drawSection(type,inputs);return}
+    V3.r.setPixelRatio(Math.min(2,devicePixelRatio||1));
+    V3.scene=new T.Scene();V3.cam=new T.PerspectiveCamera(38,1.5,.01,500);
+    V3.scene.add(new T.AmbientLight(0xffffff,.7));
+    const d1=new T.DirectionalLight(0xffffff,.8);d1.position.set(4,8,5);V3.scene.add(d1);
+    const d2=new T.DirectionalLight(0xffffff,.35);d2.position.set(-5,3,-4);V3.scene.add(d2);
+    V3.r.domElement.setAttribute('aria-label',L('نموذج ثلاثي الأبعاد للتسليح','3D reinforcement model'));
+    orbitBind(V3.r.domElement);
+  }
+  host.prepend(V3.r.domElement);
+  if(V3.group){V3.scene.remove(V3.group);disposeGroup(V3.group)}
+  V3.group=buildModel(T,type,numObj(inputs));V3.scene.add(V3.group);
+  const bb=new T.Box3().setFromObject(V3.group),ctr=bb.getCenter(new T.Vector3()),sz=bb.getSize(new T.Vector3());
+  V3.group.position.sub(ctr);
+  const size=Math.max(sz.x,sz.y,sz.z)||1;
+  if(V3.key!==type||Math.abs(size-V3.size)/V3.size>.5){V3.dist=size*2.1}   // re-frame only when the scale changes a lot
+  V3.size=size;V3.key=type;
+  size3D();
+  if(!V3.raf)V3.raf=requestAnimationFrame(tick3D);
+}
+const dimsText=(type,v)=>{v=numObj(v);const m=x=>fmtF(x,2);
+  if(isFoot(type))return`${m(v.L)} × ${m(v.W)} × ${m(v.D/100)} m`;
+  if(type==='column')return`${m(v.b/100)} × ${m(v.h/100)} × ${m(v.H)} m`;
+  if(type==='slab')return byArea(v)?`${fmt(v.A)} m² × ${m(v.t/100)} m`:`${m(v.Lx)} × ${m(v.Ly)} × ${m(v.t/100)} m`;
+  return`${m(v.L)} × ${m(v.b/100)} × ${m(v.h/100)} m`};
+
+/* ================== shared table builders ================== */
+const f2=n=>fmtF(n,2), f3=n=>fmtF(n,3);
+const SECTIONS=[
+  {key:'plain',  title:['بالمتر المكعب خرسانة عادية لزوم القواعد','Plain concrete for footings (blinding), per m³'],short:['خرسانة عادية لزوم القواعد','Plain concrete — footings']},
+  {key:'footing',title:['بالمتر المكعب خرسانة مسلحة لزوم القواعد','Reinforced concrete for footings, per m³'],short:['خرسانة مسلحة لزوم القواعد','Reinforced concrete — footings']},
+  {key:'tie',    title:['بالمتر المكعب خرسانة مسلحة لزوم السملات','Reinforced concrete for tie beams, per m³'],short:['خرسانة مسلحة لزوم السملات','Reinforced concrete — tie beams']},
+  {key:'grade',  title:['بالمتر المكعب خرسانة مسلحة لزوم القريد بيم (الجسور الأرضية)','Reinforced concrete for grade beams, per m³'],short:['خرسانة مسلحة لزوم القريد بيم','Reinforced concrete — grade beams']},
+  {key:'column', title:['بالمتر المكعب خرسانة مسلحة لزوم الأعمدة','Reinforced concrete for columns, per m³'],short:['خرسانة مسلحة لزوم الأعمدة','Reinforced concrete — columns']},
+  {key:'slab',   title:['بالمتر المكعب خرسانة مسلحة لزوم الأسقف','Reinforced concrete for slabs, per m³'],short:['خرسانة مسلحة لزوم الأسقف','Reinforced concrete — slabs']},
+];
+const secTitle=k=>tr(SECTIONS.find(s=>s.key===k).title);
+const ITEM=()=>L('البند : ','Item: ');
+const H={
+  desc:()=>L('بيان الأعمال','Description'),unit:()=>L('الوحدة','Unit'),count:()=>L('العدد','No.'),
+  dims:()=>L('الأبعاد','Dimensions'),qty:()=>L('الكميات','Quantities'),len:()=>L('الطول','Length'),wid:()=>L('العرض','Width'),hgt:()=>L('الارتفاع','Height'),
+  ded:()=>L('خصم','Deduct'),add:()=>L('إضافة','Add'),tot:()=>L('إجمالي','Total'),itemTot:()=>L('إجمالي البند','Item total'),
+  barType:()=>L('نوع الحديد','Bar type'),dia:()=>L('القطر مم','Dia. mm'),lens:()=>L('الأطوال','Lengths'),barLen:()=>L('طول السيخ م','Bar length m'),
+  kgm:()=>L('وزن م.ط كغ','kg/m'),kg:()=>L('الوزن كغ','Weight kg'),ton:()=>L('طن','Tonnes'),totLen:()=>L('الطول الكلي م','Total length m'),
+  bars12:()=>L('عدد الأسياخ (12 م)','No. of 12 m bars'),total:()=>L('الإجمالي','Total'),
+};
+// footing rows in one list: isolated types first, then combined, under a single item total
+const footOrder=rows=>[...rows.filter(r=>r.kind!==2),...rows.filter(r=>r.kind===2)];
+function concTableHTML(title,rows){
+  return`<section class="rep-sec"><h3>${ITEM()}${title}</h3>
+  <div class="tbl-wrap"><table class="boq-t">
+    <thead><tr><th rowspan="2" style="width:24%">${H.desc()}</th><th rowspan="2">${H.unit()}</th><th rowspan="2">${H.count()}</th><th colspan="3">${H.dims()}</th><th colspan="3">${H.qty()}</th></tr>
+      <tr><th>${H.len()}</th><th>${H.wid()}</th><th>${H.hgt()}</th><th>${H.ded()}</th><th>${H.add()}</th><th>${H.tot()}</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td class="desc">${esc(r.label)}</td><td class="desc">${M3()}</td><td>${fmt(r.n,0)}</td>
+      ${r.area?`<td colspan="2">${f2(r.L)} ${L('م²','m²')}</td>`:`<td>${f2(r.L)}</td><td>${f2(r.W)}</td>`}<td>${f2(r.H)}</td><td>${r.dedCell??(r.ded?f3(r.ded):'')}</td>
+      <td>${f3(r.gross)}</td><td class="tot">${f3(r.net)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="lbl" colspan="6">${H.itemTot()}</td><td>${sum(rows,'ded')?f3(sum(rows,'ded')):''}</td><td>${f3(sum(rows,'gross'))}</td><td>${f3(sum(rows,'net'))}</td></tr></tfoot>
+  </table></div></section>`;
+}
+function steelTableHTML(title,rows){
+  const kg=sum(rows,'kg');
+  return`<section class="rep-sec"><h3>${ITEM()}${title}</h3>
+  <div class="tbl-wrap"><table class="boq-t">
+    <thead><tr><th rowspan="2" style="width:22%">${H.desc()}</th><th rowspan="2">${H.barType()}</th><th rowspan="2">${H.dia()}</th><th rowspan="2">${H.count()}</th><th colspan="2">${H.lens()}</th><th colspan="2">${H.qty()}</th></tr>
+      <tr><th>${H.barLen()}</th><th>${H.kgm()}</th><th>${H.kg()}</th><th>${H.ton()}</th></tr></thead>
+    <tbody>${rows.map(b=>`<tr><td class="desc">${esc(b.label)}</td><td class="desc">${b.role}</td><td>Ø${b.d}</td><td>${fmt(b.count,0)}</td>
+      <td>${f2(b.len)}</td><td>${f3(wpm(b.d))}</td><td>${fmtF(b.kg,1)}</td><td class="tot">${f3(b.kg/1000)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="lbl" colspan="6">${H.itemTot()}</td><td>${fmtF(kg,1)}</td><td>${f3(kg/1000)}</td></tr></tfoot>
+  </table></div></section>`;
+}
+function orderTableHTML(title,dias){
+  return`<section class="rep-sec"><h3>${title}</h3>
+  <div class="tbl-wrap"><table class="boq-t">
+    <thead><tr><th>${H.dia()}</th><th>${H.totLen()}</th><th>${H.kg()}</th><th>${H.ton()}</th><th>${H.bars12()}</th></tr></thead>
+    <tbody>${dias.map(d=>`<tr><td>Ø${d.d}</td><td>${fmtF(d.len,1)}</td><td>${fmtF(d.kg,1)}</td><td>${f3(d.kg/1000)}</td><td class="tot">${d.bars12}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="lbl">${H.total()}</td><td>${fmtF(sum(dias,'len'),1)}</td><td>${fmtF(sum(dias,'kg'),1)}</td><td>${f3(sum(dias,'kg')/1000)}</td><td>${sum(dias,'bars12')}</td></tr></tfoot>
+  </table></div></section>`;
+}
+const rowOf=(label,d)=>{const gross=d.n*d.L*d.W*d.H;return{label,...d,gross,ded:0,net:gross}};
+
+/* ================== views ================== */
+const LOGO='<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="4" fill="var(--brand)"/><rect x="7" y="7" width="18" height="18" rx="1" fill="none" stroke="var(--brand-ink)" stroke-width="2.2"/><circle cx="11" cy="11" r="2.1" fill="var(--brand-ink)"/><circle cx="21" cy="11" r="2.1" fill="var(--brand-ink)"/><circle cx="11" cy="21" r="2.1" fill="var(--brand-ink)"/><circle cx="21" cy="21" r="2.1" fill="var(--brand-ink)"/></svg>';
+// replace these with your own profile links
+const SOCIAL=[
+  {name:'LinkedIn',url:'https://www.linkedin.com/',svg:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>'},
+  {name:'X',url:'https://x.com/',svg:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.4l-5.8-7.58-6.63 7.58H.49l8.6-9.83L0 1.15h7.59l5.24 6.93zm-1.29 19.5h2.04L6.48 3.24H4.3z"/></svg>'},
+  {name:'Instagram',url:'https://www.instagram.com/',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>'},
+];
+const footer=()=>`<footer class="site-foot">
+  <div class="foot-brand"><span class="foot-name">ConcreteCalc</span>
+    <span class="foot-by">${L('حاسبة كميات الخرسانة وحديد التسليح','Concrete & rebar quantity calculator')}</span>
+    <div class="socials">${SOCIAL.map(s=>`<a href="${s.url}" target="_blank" rel="noopener noreferrer" aria-label="${s.name}">${s.svg}</a>`).join('')}</div></div>
+  <span class="foot-copy">© ${new Date().getFullYear()} ConcreteCalc · ${L('جميع الحقوق محفوظة','All rights reserved')}</span>
+</footer>`;
+const I={
+  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
+  calc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h2M12 11h2M16 11v6M8 15h2M12 15h2M8 19h2M12 19h2"/></svg>',
+  out:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+  dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
+  save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>',
+  chev:'<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>',
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l5 5 9-10"/></svg>',
+  warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  cube:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>',
+  bars:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18"/><path d="M6 5v4M10 10v4M14 15v4M18 5v4"/></svg>',
+  // two speech boxes, A and ع, with swap arrows
+  globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true"><path d="M2 2h9v9H6.5L4.5 13v-2H2z"/><path d="M13 11h9v9h-2.5v2l-2-2H13z"/><path d="M14 3h3v4M15.4 5.6 17 7.2l1.6-1.6"/><path d="M10 21H7v-4M5.4 18.4 7 16.8l1.6 1.6"/><text x="6.5" y="9.2" font-size="6.6" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial,sans-serif">A</text><text x="17.5" y="18.3" font-size="7" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Tahoma,Arial,sans-serif">ع</text></svg>',
+};
+// the toggle shows the language you would switch TO
+/* light / dark switch: stamps data-theme on <html>, which the stylesheet already keys its dark palette on */
+const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+const isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches};
+function applyTheme(){const t=store.get('cc.theme',null);if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}
+function toggleTheme(){
+  const next=isDark()?'light':'dark';
+  document.documentElement.dataset.theme=next;store.set('cc.theme',next);
+  const y=scrollY;render();scrollTo(0,y);
+  toast(next==='dark'?L('تم التبديل إلى الوضع الداكن.','Switched to dark mode.'):L('تم التبديل إلى الوضع العادي.','Switched to light mode.'));
+}
+// the button names the mode you would switch TO
+const themeLabel=()=>isDark()?L('الوضع العادي','Light mode'):L('الوضع الداكن','Dark mode');
+const themeBtn=(extra='')=>`<button class="btn ghost lang-btn" data-act="theme" ${extra} aria-label="${themeLabel()}">${isDark()?SUN:MOON}${themeLabel()}</button>`;
+const langBtn=(extra='')=>`<button class="btn ghost lang-btn" data-act="lang" ${extra} aria-label="${L('Switch to English','التبديل إلى العربية')}">${I.globe}${L('English','العربية')}</button>`;
+
+const SLIDES=[
+  {t:['مشاريع معقدة، كميات دقيقة','Complex projects, exact quantities'],s:['من أبعاد المخطط إلى جدول الكميات في ثوانٍ','From drawing dimensions to a bill of quantities in seconds']},
+  {t:['الخرسانة بالمتر المكعب','Concrete by the cubic metre'],s:['كل نوع في صف: العدد × الطول × العرض × الارتفاع، مع الخصم والإجمالي','Every type on its own row: count × length × width × height, with deductions and totals']},
+  {t:['الحديد بالكيلو والطن','Rebar by the kilo and the tonne'],s:['وصلات التراكب والتثبيت محسوبة، وعدد الأسياخ بطول 12 م جاهز للطلبية','Laps and anchorage included, with the number of 12 m bars ready to order']},
+];
+function viewAuth(){
+  const login=S.authTab==='login',sl=SLIDES[S.slide||0];
+  return`<div class="landing">
+  <section class="hero">
+    <canvas id="sky" aria-hidden="true"></canvas><div class="hero-shade"></div>
+    <header class="topnav">
+      <div class="brand">${LOGO}<span>ConcreteCalc</span></div>
+      <nav aria-label="${L('القائمة','Menu')}">
+        <button data-act="scrollto" data-v="about">${L('عن الموقع','About')}</button>
+        <button data-act="demo">${L('حساب تجريبي','Demo')}</button>
+        <button data-act="lang" aria-label="${L('Switch to English','التبديل إلى العربية')}">${I.globe}<span class="nav-text">${L('English','العربية')}</span></button>
+        <button data-act="theme" aria-label="${themeLabel()}" title="${themeLabel()}">${isDark()?SUN:MOON}</button>
+        <button data-act="design" aria-label="${L('تخصيص التصميم','Customize design')}" title="${L('تخصيص التصميم','Customize design')}">${BRUSH}</button>
+      </nav>
+    </header>
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <span class="eyebrow">${L('حاسبة كميات الخرسانة وحديد التسليح','Concrete & rebar quantity calculator')}</span>
+        <h1 class="hero-title" id="slide-title">${words(tr(sl.t))}</h1>
+        <p class="hero-sub" id="slide-sub">${tr(sl.s)}</p>
+        <div class="hero-ctas">
+          <button class="btn-solid" data-act="startsignup">${L('أنشئ حسابًا مجانيًا','Create a free account')}</button>
+          <button class="btn-outline" data-act="demo">${L('جرّب المشروع النموذجي','Try the sample project')}</button>
+        </div>
+        <div class="dots" role="tablist" aria-label="${L('الرسائل','Messages')}">${SLIDES.map((_,i)=>`<button role="tab" data-act="slide" data-v="${i}" aria-current="${i===(S.slide||0)}" aria-label="${i+1}"><span class="bar"></span></button>`).join('')}</div>
+      </div>
+      <div class="auth-card glass">
+        <div><h2>${login?L('تسجيل الدخول','Sign in'):L('إنشاء حساب جديد','Create an account')}</h2>
+          <p class="muted" style="font-size:var(--t-sm)">${login?L('تابع حساب كميات مشاريعك من حيث توقفت.','Pick up your project quantities where you left off.'):L('احفظ حسابات كل مشروع وصدّرها كجدول كميات.','Save each project\'s calculations and export them as a bill of quantities.')}</p></div>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" id="tab-login" aria-selected="${login}" data-act="authtab" data-v="login">${L('دخول','Sign in')}</button>
+          <button class="tab" role="tab" id="tab-signup" aria-selected="${!login}" data-act="authtab" data-v="signup">${L('حساب جديد','New account')}</button>
+        </div>
+        <form id="auth-form" class="stack" novalidate>
+          <div id="auth-err" class="form-err" hidden></div>
+          ${login?'':`<div class="field" data-f="name"><label for="a-name">${L('الاسم','Name')}</label><input class="input" id="a-name" autocomplete="name" placeholder="${L('م. أحمد السيد','Eng. Ahmed Elsayed')}"><div class="msg"></div></div>`}
+          <div class="field" data-f="email"><label for="a-email">${L('البريد الإلكتروني','Email')}</label><input class="input num" id="a-email" type="email" autocomplete="email" placeholder="name@example.com"><div class="msg"></div></div>
+          <div class="field" data-f="pw"><label for="a-pw">${L('كلمة المرور','Password')}</label><input class="input num" id="a-pw" type="password" autocomplete="${login?'current-password':'new-password'}"><div class="msg"></div></div>
+          ${login?'':`<div class="field" data-f="pw2"><label for="a-pw2">${L('تأكيد كلمة المرور','Confirm password')}</label><input class="input num" id="a-pw2" type="password" autocomplete="new-password"><div class="msg"></div></div>`}
+          <button class="btn primary" type="submit" style="justify-content:center;padding-block:.7rem">${login?L('دخول','Sign in'):L('إنشاء الحساب','Create account')}</button>
+        </form>
+        <p class="note">${L('الحسابات والمشاريع محفوظة في هذا المتصفح فقط ولا تُرسل إلى أي خادم.','Accounts and projects are stored in this browser only and are never sent to a server.')}</p>
+      </div>
+    </div>
+  </section>
+  <section class="about" id="about">
+    <div class="about-grid">
+      <div>
+        <span class="eyebrow">${L('عن الموقع','About')}</span>
+        <h2>${L('ما هو ConcreteCalc؟','What is ConcreteCalc?')}</h2>
+        <p class="lead">${L('موقع بسيط يحسب لك كمية الخرسانة وحديد التسليح لأي مبنى، بدون جداول Excel معقدة وبدون حسابات يدوية.','A simple website that works out the concrete and reinforcing steel for any building, without complicated spreadsheets or hand calculations.')}</p>
+        <p class="more">${L('تكتب مقاسات العنصر كما هي في المخطط، والموقع يحسب الباقي: كم متر مكعب خرسانة تحتاج، وكم كيلو حديد، وكم سيخ تطلب من المورد.','You type the sizes straight from the drawing, and the site does the rest: how many cubic metres of concrete you need, how many kilos of steel, and how many bars to order from the supplier.')}</p>
+        <p class="more" style="margin-top:1.4rem;font-weight:600;color:var(--ink)">${L('لمن هذا الموقع؟','Who is it for?')}</p>
+        <div class="who-chips">${[['المهندس المدني','Civil engineers'],['مهندس الموقع','Site engineers'],['المقاول','Contractors'],['طالب الهندسة','Engineering students']].map(x=>`<span>${tr(x)}</span>`).join('')}</div>
+      </div>
+      <div>
+        <p style="font-weight:600;margin-bottom:.8rem">${L('طريقة الاستخدام في 3 خطوات','How it works, in 3 steps')}</p>
+        <ol class="steps">
+          <li><span class="n">1</span><div><b>${L('اختر العنصر','Pick the element')}</b><span>${L('عمود، سملة، قريد بيم، سقف، أو قاعدة.','A column, tie beam, grade beam, slab or footing.')}</span></div></li>
+          <li><span class="n">2</span><div><b>${L('اكتب المقاسات','Enter the sizes')}</b><span>${L('العدد والطول والعرض والارتفاع، وتفاصيل الحديد إن أردت. لكل مقاس مختلف أضف نوعًا جديدًا (ع1، ع2…).','Count, length, width and height, plus the steel details if you want them. Add a new type for each different size (C1, C2…).')}</span></div></li>
+          <li><span class="n">3</span><div><b>${L('احفظ وصدّر','Save and export')}</b><span>${L('احفظ الحساب في مشروعك، ثم اطبع تقرير حصر الكميات أو نزّله ملف Excel.','Save the calculation to your project, then print the quantity report or download it as an Excel file.')}</span></div></li>
+        </ol>
+      </div>
+    </div>
+    <div class="gets">
+      <div><span class="k">${M3()}</span><span class="d">${L('حجم الخرسانة لكل بند ولكل نوع','Concrete volume for every item and type')}</span></div>
+      <div><span class="k">${L('كغ · طن','kg · t')}</span><span class="d">${L('وزن الحديد شامل وصلات التراكب والتثبيت','Steel weight including laps and anchorage')}</span></div>
+      <div><span class="k">${L('12 م','12 m')}</span><span class="d">${L('عدد الأسياخ المطلوب من كل قطر','Number of bars to order for each diameter')}</span></div>
+      <div><span class="k">Excel</span><span class="d">${L('تقرير جاهز للطباعة والإرسال','A report ready to print and send')}</span></div>
+    </div>
+    <p class="about-note">${L('الموقع مجاني، ومشاريعك تبقى محفوظة على جهازك فقط.','The site is free, and your projects stay saved on your own device.')}</p>
+  </section>
+  ${footer()}</div>`;
+}
+// each word sits in a clipping box so it can slide in and out of view
+const words=text=>text.split(/\s+/).filter(Boolean).map((w,k)=>`<span class="w"><span class="wi" style="--k:${k}">${esc(w)}</span></span>`).join(' ');
+let slideTok=0;
+function setSlide(i){
+  const t=$('#slide-title'),s=$('#slide-sub');if(!t)return;
+  const tok=++slideTok;S.slide=i;
+  document.querySelectorAll('.dots button').forEach((b,j)=>b.setAttribute('aria-current',String(j===i)));
+  const still=reducedMotion();
+  const swap=()=>{if(tok!==slideTok)return;
+    t.innerHTML=words(tr(SLIDES[i].t));s.textContent=tr(SLIDES[i].s);
+    t.classList.remove('out','in');s.classList.remove('sub-out','sub-in');void t.offsetWidth;
+    t.classList.add('in');s.classList.add('sub-in')};
+  if(still){swap();return}
+  t.classList.remove('in');t.classList.add('out');s.classList.remove('sub-in');s.classList.add('sub-out');
+  const n=t.querySelectorAll('.wi').length;
+  setTimeout(swap,380+n*35);
+}
+// the active dot's progress bar is the timer: when it fills, move to the next message
+document.getElementById('app').addEventListener('animationend',e=>{
+  if(e.animationName==='dot-fill'&&S.view==='auth')setSlide(((S.slide||0)+1)%SLIDES.length);
+});
+
+/* construction skyline drawn on canvas: static layers cached, cranes animated in between */
+let skyRAF=0;
+function initSky(){
+  cancelAnimationFrame(skyRAF);
+  const cv=document.getElementById('sky');if(!cv)return;
+  const ctx=cv.getContext('2d');
+  const still=reducedMotion();
+  const seeded=seed=>()=>(seed=(seed*16807)%2147483647,(seed-1)/2147483646);
+  let W=0,H=0,back,front,cranes=[];
+  function layer(){const c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;const x=c.getContext('2d');x.setTransform(cv.width/W,0,0,cv.height/H,0,0);return[c,x]}
+  function build(){
+    const dpr=Math.min(2,devicePixelRatio||1);W=cv.clientWidth||1;H=cv.clientHeight||1;
+    cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);
+    const r=seeded(11);
+    // back: sky, sun haze, far skyline
+    let b;[back,b]=layer();
+    const g=b.createLinearGradient(0,0,0,H);
+    // sky graded from the dark colour up into a dusty tint of the main colour
+    const P=palette(),dk=P.charcoal,br=P.brand,dust='#B8A891';
+    g.addColorStop(0,mix(dk,'#000000',.1));g.addColorStop(.45,mix(mix(dk,br,.35),dust,.25));g.addColorStop(.8,mix(br,dust,.55));g.addColorStop(1,mix(br,'#E2D6C2',.6));
+    b.fillStyle=g;b.fillRect(0,0,W,H);
+    const sun=b.createRadialGradient(W*.72,H*.32,0,W*.72,H*.32,H*.7);
+    sun.addColorStop(0,'rgba(255,224,170,.35)');sun.addColorStop(1,'rgba(255,224,170,0)');b.fillStyle=sun;b.fillRect(0,0,W,H);
+    b.fillStyle=mix(dk,br,.22)+'8C';
+    for(let x=-20;x<W+20;){const w=36+r()*80,h=H*(.16+r()*.3);b.fillRect(x,H-h,w,h);x+=w*.85}
+    // front: near buildings with a few lit windows
+    let f;[front,f]=layer();
+    for(let x=-30;x<W+30;){
+      const w=60+r()*130,h=H*(.1+r()*.38),y=H-h,seed=Math.floor(r()*997);
+      f.fillStyle='#1F1A14';f.fillRect(x,y,w,h);
+      f.fillStyle='rgba(255,255,255,.035)';f.fillRect(x,y,3,h);
+      for(let wy=y+10,j=0;wy<H-8;wy+=13,j++)for(let wx=x+8,i=0;wx<x+w-10;wx+=10,i++){
+        const lit=(i*31+j*17+seed)%13===0;
+        f.fillStyle=lit?'rgba(255,205,130,.75)':'rgba(255,255,255,.035)';f.fillRect(wx,wy,5,7);
+      }
+      x+=w+4+r()*18;
+    }
+    cranes=[.16,.5,.83].map((p,i)=>({x:W*p+(r()-.5)*W*.05,h:H*(.6+r()*.18),jib:Math.min(W*.2,260)*(.8+r()*.4)*(i%2?-1:1),ph:r()*6.28,sp:.00018+r()*.00014}));
+  }
+  function crane(c,t,col){
+    const x=c.x,top=H-c.h,m=5;
+    ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1.3;ctx.beginPath();
+    ctx.moveTo(x-m,H);ctx.lineTo(x-m,top);ctx.moveTo(x+m,H);ctx.lineTo(x+m,top);
+    for(let y=H,k=0;y>top;y-=12,k++){ctx.moveTo(x-m,y);ctx.lineTo(x+m,y-12);ctx.moveTo(x-m,y-12);ctx.lineTo(x+m,y-12)}
+    const tip=x+c.jib,back=x-c.jib*.32,dir=Math.sign(c.jib);
+    // jib (two chords + lattice) and counter-jib
+    ctx.moveTo(x,top);ctx.lineTo(tip,top);ctx.moveTo(x,top+8);ctx.lineTo(tip-dir*6,top+8);
+    for(let s=x;dir>0?s<tip-6:s>tip+6;s+=dir*12){ctx.moveTo(s,top+8);ctx.lineTo(s+dir*6,top);ctx.lineTo(s+dir*12,top+8)}
+    ctx.moveTo(x,top);ctx.lineTo(back,top);
+    // apex and pendants
+    ctx.moveTo(x,top);ctx.lineTo(x,top-26);ctx.lineTo(tip,top);ctx.moveTo(x,top-26);ctx.lineTo(back,top);
+    ctx.stroke();
+    ctx.fillRect(Math.min(back,back+dir*22),top+1,22,12);       // counterweight
+    ctx.fillRect(x-(dir>0?12:-2),top+8,10,9);                   // cab
+    // trolley + hook + load
+    const p=.3+.5*(.5+.5*Math.sin(t*c.sp+c.ph));
+    const tx=x+c.jib*p,len=c.h*(.18+.22*(.5+.5*Math.sin(t*c.sp*.7+c.ph*2)));
+    ctx.fillRect(tx-5,top+8,10,4);
+    ctx.beginPath();ctx.moveTo(tx,top+12);ctx.lineTo(tx,top+12+len);ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle='#2B241B';ctx.fillRect(tx-9,top+12+len,18,10);
+  }
+  let last=0;
+  function frame(t){
+    if(!cv.isConnected)return;
+    if(t-last>=33||still){last=t;
+      const col=getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()||'#FFC21A';
+      ctx.drawImage(back,0,0,W,H);
+      ctx.globalAlpha=.88;for(const c of cranes)crane(c,t,col);ctx.globalAlpha=1;
+      ctx.drawImage(front,0,0,W,H);
+    }
+    if(!still)skyRAF=requestAnimationFrame(frame);
+  }
+  build();frame(0);
+  initSky.rebuild=()=>{if(cv.isConnected){build();if(still)frame(0)}};
+}
+let skyResizeT;
+addEventListener('resize',()=>{clearTimeout(skyResizeT);skyResizeT=setTimeout(()=>initSky.rebuild&&initSky.rebuild(),150)});
+
+function shell(inner){
+  const u=S.user;const nav=v=>S.view===v?'aria-current="page"':'';
+  return`<div class="mobile-bar"><div class="brand" style="font-size:var(--t-md)">${LOGO}<span>ConcreteCalc</span></div>
+    <nav><button data-act="go" data-v="dash" ${nav('dash')}>${L('المشاريع','Projects')}</button><button data-act="go" data-v="calc" ${nav('calc')}>${L('الحاسبة','Calculator')}</button><button data-act="theme" aria-label="${themeLabel()}">${isDark()?SUN:MOON}</button><button data-act="design">${L('تصميم','Design')}</button><button data-act="lang">${L('EN','ع')}</button><button data-act="logout">${L('خروج','Sign out')}</button></nav></div>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">${LOGO}<span>ConcreteCalc</span></div>
+      <nav class="nav">
+        <button data-act="go" data-v="dash" ${nav('dash')}>${I.dash}${L('لوحة المشاريع','Projects dashboard')}</button>
+        <button data-act="go" data-v="calc" ${nav('calc')}>${I.calc}${L('حاسبة العناصر','Element calculator')}</button>
+      </nav>
+      <div class="rail-foot">
+        ${themeBtn('style="justify-content:flex-start"')}
+        ${designBtn('style="justify-content:flex-start"')}
+        ${langBtn('style="justify-content:flex-start"')}
+        <div class="who"><div class="avatar">${esc((u.name||'?').trim().charAt(0))}</div>
+          <div style="min-width:0"><div class="who-name">${esc(u.name)}</div><div class="who-mail">${esc(u.email)}</div></div></div>
+        <button class="btn ghost" data-act="logout" style="justify-content:flex-start">${I.out}${L('تسجيل الخروج','Sign out')}</button>
+      </div>
+    </aside>
+    <main>${inner}${footer()}</main>
+  </div>`;
+}
+
+function viewDash(){
+  const T=allTotals();const P=S.data.projects;
+  const head=`<div class="page-head"><div><span class="eyebrow">${L('لوحة المشاريع','Projects dashboard')}</span><h1>${L('مرحبًا','Welcome,')} ${esc(S.user.name.split(' ')[0])}</h1></div>
+    <div class="actions"><button class="btn" data-act="backup" ${P.length?'':'disabled'}>${I.dl}${L('نسخة احتياطية JSON','JSON backup')}</button>
+    <button class="btn" data-act="newproj">${I.plus}${L('مشروع جديد','New project')}</button>
+    <button class="btn primary" data-act="go" data-v="calc">${I.calc}${L('حساب عنصر','Calculate an element')}</button></div></div>`;
+  if(!P.length){
+    return shell(head+`<div class="empty"><h3>${L('لا توجد مشاريع بعد','No projects yet')}</h3>
+      <p>${L('أنشئ مشروعًا ثم احسب عناصره من الحاسبة واحفظها فيه. ستظهر هنا إجماليات الخرسانة والحديد لكل مشروع ولكل نوع عنصر.','Create a project, then calculate its elements and save them to it. Concrete and steel totals per project and per element type will appear here.')}</p>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center"><button class="btn primary" data-act="newproj">${I.plus}${L('أنشئ أول مشروع','Create your first project')}</button><button class="btn" data-act="seed">${L('أضف مشروعًا نموذجيًا','Add a sample project')}</button></div></div>`);
+  }
+  const tiles=`<div class="tiles">
+    <div class="tile"><span class="eyebrow">${L('المشاريع','Projects')}</span><span class="v">${P.length}</span><span class="sub">${T.items} ${L('بندًا محسوبًا','calculated items')}</span></div>
+    <div class="tile"><span class="eyebrow">${L('خرسانة مسلحة','Reinforced concrete')}</span><span class="v">${fmt(T.conc,1)}<small>${M3()}</small></span><span class="sub">${T.plain?`+ ${fmt(T.plain,1)} ${M3()} ${L('خرسانة عادية','plain concrete')}`:L('كل المشاريع','All projects')}</span></div>
+    <div class="tile steel"><span class="eyebrow">${L('حديد التسليح','Reinforcing steel')}</span><span class="v">${fmt(T.steel/1000,2)}<small>${L('طن','t')}</small></span><span class="sub">${fmt(T.steel,0)} ${L('كغ','kg')}</span></div>
+    <div class="tile"><span class="eyebrow">${L('متوسط نسبة التسليح','Average steel ratio')}</span><span class="v">${fmt(T.conc?T.steel/T.conc:0,0)}<small>${L('كغ/م³','kg/m³')}</small></span><span class="sub">${L('الحديد ÷ الخرسانة المسلحة','Steel ÷ reinforced concrete')}</span></div>
+  </div>`;
+  const keys=Object.keys(ELEMENTS);
+  const maxC=niceMax(Math.max(...keys.map(k=>T.by[k].conc)));
+  const maxS=niceMax(Math.max(...keys.map(k=>T.by[k].steel)));
+  const dirStyle=`direction:${L('rtl','ltr')}`;
+  const bars=(field,max,cls,unit,d)=>keys.map(k=>{const v=T.by[k][field];
+    return`<div class="hbar ${cls}" data-tip="${elName(k)}<br><span class='num'>${fmt(v,d)} ${unit}</span> · ${T.by[k].count} ${L('بند','items')}"><span class="lbl">${elName(k)}</span>
+      <div class="track"><div class="fill" style="width:${max?v/max*100:0}%"></div></div><span class="val num">${fmt(v,d)}</span></div>`}).join('')
+    +`<div class="axis"><span></span><div class="ticks num" style="${dirStyle}">${[0,.25,.5,.75,1].map(f=>`<span>${fmt(max*f,0)}</span>`).join('')}</div><span></span></div>`;
+  const ratioMax=260,side=L('right','left');
+  const ratio=keys.filter(k=>T.by[k].count).map(k=>{const o=T.by[k];const r=o.conc?o.steel/o.conc:0;const[lo,hi]=RATIO[k];const out=r<lo||r>hi;
+    return`<div class="ratio-row" data-tip="${elName(k)}: <span class='num'>${fmt(r,0)} kg/m³</span><br>${L('النطاق المعتاد','Typical range')} ${lo}–${hi}"><span>${elName(k)}</span>
+      <div class="ratio-track"><div class="ratio-band" style="${side}:${lo/ratioMax*100}%;width:${(hi-lo)/ratioMax*100}%"></div>
+      <div class="ratio-dot ${out?'out':''}" style="${side}:${Math.min(r,ratioMax)/ratioMax*100}%"></div></div>
+      <span class="num" style="text-align:${L('left','right')};color:${out?'var(--bad)':'var(--ink-2)'}">${fmt(r,0)}${out?' ⚠':''}</span></div>`}).join('');
+  const panels=`<p class="note panels-tip">${L('نقرتان على أي رسم بياني لتغيير حجمه.','Double-click any chart to resize it.')}</p><div class="panels">
+    ${panelBox('conc',1,`<div class="panel-head"><h3>${L('الخرسانة حسب العنصر','Concrete by element')}</h3><p>${M3()} · ${L('كل المشاريع','all projects')}</p></div><div class="hbars">${bars('conc',maxC,'',M3(),2)}</div>`)}
+    ${panelBox('steel',1,`<div class="panel-head"><h3>${L('الحديد حسب العنصر','Steel by element')}</h3><p>${L('كغ','kg')} · ${L('كل المشاريع','all projects')}</p></div><div class="hbars">${bars('steel',maxS,'steel',L('كغ','kg'),0)}</div>`)}
+    ${panelBox('ratio',2,`<div class="panel-head"><h3>${L('نسبة التسليح','Steel ratio')}</h3><p>${L('كغ حديد لكل م³ خرسانة، مقارنة بنطاق مرجعي تقريبي للمباني السكنية','kg of steel per m³ of concrete, compared with an approximate range for residential buildings')}</p></div>
+      <div class="ratio">${ratio}<div class="ratio-row"><span></span><div class="ratio-axis num" style="${dirStyle}">${[0,50,100,150,200,250].map(x=>`<span>${x}</span>`).join('')}</div><span></span></div></div>
+      <div class="legend"><span><i style="background:var(--ok-soft)"></i>${L('النطاق المعتاد','Typical range')}</span><span><i style="background:var(--rebar);border-radius:50%"></i>${L('قيمتك','Your value')}</span><span><i style="background:var(--bad);border-radius:50%"></i>${L('خارج النطاق: راجع التسليح','Out of range: check the reinforcement')}</span></div>`)}
+  </div>`;
+  const projects=`<section class="stack"><div class="panel-head"><h2>${L('المشاريع','Projects')}</h2><p class="muted" style="font-size:var(--t-xs)">${L('اضغط على المشروع لعرض البنود والتصدير','Click a project to see its items and export options')}</p></div>
+    <div class="projects">${P.map(projCard).join('')}</div></section>`;
+  return shell(head+tiles+panels+projects);
+}
+/* ---- resizable chart panels: double-click to edit, drag handles, sizes remembered ---- */
+const PANEL_MIN_H=200,PANEL_MAX_H=900;
+const layoutGet=()=>store.get('cc.layout',{})||{};
+function panelBox(id,defSpan,inner){
+  const lay=layoutGet()[id]||{},span=lay.span||defSpan;
+  return`<div class="panel rz-panel" data-panel="${id}" data-span="${span}" style="grid-column:${span===2?'1 / -1':'auto'};${lay.h?`height:${lay.h}px;`:''}">
+    ${inner}
+    <span class="rz rz-x" data-rz="x" title="${L('اسحب لتغيير العرض','Drag to change the width')}"></span>
+    <span class="rz rz-y" data-rz="y" title="${L('اسحب لتغيير الارتفاع','Drag to change the height')}"></span>
+    <span class="rz rz-xy" data-rz="xy" title="${L('اسحب لتغيير الحجم','Drag to resize')}"></span>
+    <div class="rz-tools">
+      <span class="rz-size num"></span>
+      <button type="button" data-rzact="span">${span===2?L('نصف العرض','Half width'):L('العرض الكامل','Full width')}</button>
+      <button type="button" data-rzact="reset">${L('الحجم الأصلي','Original size')}</button>
+      <button type="button" data-rzact="done" class="on">${L('تم','Done')}</button>
+    </div>
+  </div>`;
+}
+function savePanel(p){
+  const lay=layoutGet(),id=p.dataset.panel;
+  lay[id]={span:+p.dataset.span,h:p.style.height?parseInt(p.style.height):0};store.set('cc.layout',lay);
+}
+// bars and rows grow with the panel, so a bigger chart reads bigger instead of just gaining empty space
+function fitPanel(p){
+  const rows=p.querySelectorAll('.hbar,.ratio-row').length||1;
+  const head=p.querySelector('.panel-head'),legend=p.querySelector('.legend');
+  const free=p.clientHeight-(head?head.offsetHeight:0)-(legend?legend.offsetHeight:0)-60;
+  const per=Math.max(18,free/rows);
+  p.style.setProperty('--bar-h',Math.round(Math.min(40,Math.max(10,per*.42)))+'px');
+  const sz=p.querySelector('.rz-size');if(sz)sz.textContent=`${Math.round(p.offsetWidth)} × ${Math.round(p.offsetHeight)}`;
+}
+const panelRO=typeof ResizeObserver!=='undefined'?new ResizeObserver(es=>es.forEach(e=>fitPanel(e.target))):null;
+function wirePanels(){document.querySelectorAll('.rz-panel').forEach(p=>{fitPanel(p);if(panelRO)panelRO.observe(p)})}
+function endPanelEdit(){document.querySelectorAll('.rz-panel.editing').forEach(p=>{p.classList.remove('editing');savePanel(p)})}
+function setSpan(p,span){
+  p.dataset.span=span;p.style.gridColumn=span===2?'1 / -1':'auto';
+  const b=p.querySelector('[data-rzact="span"]');if(b)b.textContent=span===2?L('نصف العرض','Half width'):L('العرض الكامل','Full width');
+}
+document.addEventListener('dblclick',e=>{
+  const p=e.target.closest&&e.target.closest('.rz-panel');if(!p||e.target.closest('.rz-tools'))return;
+  const was=p.classList.contains('editing');endPanelEdit();
+  try{getSelection().removeAllRanges()}catch(_){}
+  if(!was){p.classList.add('editing');fitPanel(p);toast(L('اسحب المقابض لتغيير الحجم، ثم اضغط «تم».','Drag the handles to resize, then press Done.'))}
+});
+document.addEventListener('pointerdown',e=>{
+  if(!e.target.closest)return;
+  if(!e.target.closest('.rz-panel.editing'))endPanelEdit();
+  const h=e.target.closest('.rz-panel.editing .rz');if(!h)return;
+  e.preventDefault();
+  const p=h.closest('.rz-panel'),grid=p.parentElement,mode=h.dataset.rz;
+  const rtl=getComputedStyle(p).direction==='rtl';
+  const sx=e.clientX,sy=e.clientY,sw=p.offsetWidth,sh=p.offsetHeight,gw=grid.clientWidth;
+  h.setPointerCapture(e.pointerId);p.classList.add('dragging');
+  const move=ev=>{
+    if(mode!=='y'){
+      // width snaps between half and full row; the side handle sits on the inline-end edge
+      const dx=(ev.clientX-sx)*(rtl?-1:1),w=sw+dx;
+      const span=w>gw*.62?2:1;if(span!==+p.dataset.span)setSpan(p,span);
+    }
+    if(mode!=='x'){p.style.height=Math.round(Math.min(PANEL_MAX_H,Math.max(PANEL_MIN_H,sh+ev.clientY-sy)))+'px'}
+    fitPanel(p);
+  };
+  const up=()=>{h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);p.classList.remove('dragging');savePanel(p)};
+  h.addEventListener('pointermove',move);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up);
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-rzact]');if(!b)return;
+  const p=b.closest('.rz-panel'),act=b.dataset.rzact;
+  if(act==='span'){setSpan(p,+p.dataset.span===2?1:2);fitPanel(p);savePanel(p)}
+  else if(act==='reset'){const lay=layoutGet();delete lay[p.dataset.panel];store.set('cc.layout',lay);
+    setSpan(p,p.dataset.panel==='ratio'?2:1);p.style.height='';fitPanel(p);toast(L('رجع الرسم لحجمه الأصلي.','Chart restored to its original size.'))}
+  else if(act==='done'){p.classList.remove('editing');savePanel(p)}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')endPanelEdit()});
+
+function niceMax(v){if(!v)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const m=v/p;return(m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p}
+
+function projCard(p){
+  const t=projTotals(p);const open=S.open[p.id];
+  return`<div class="proj ${open?'open':''}">
+    <div class="proj-head" data-act="toggle" data-v="${p.id}" role="button" tabindex="0" aria-expanded="${!!open}">
+      <div class="proj-title"><b>${esc(p.name)}${p.example?`<span class="pill">${L('مثال','Example')}</span>`:''}</b><span>${esc(p.location||'—')} · ${p.items.length} ${L('بند','items')} · ${fmtDate(p.created)}</span></div>
+      <div class="qty c"><span class="num">${fmt(t.conc,2)}</span>${M3()} ${L('خرسانة','concrete')}</div>
+      <div class="qty steel"><span class="num">${fmt(t.steel,0)}</span>${L('كغ حديد','kg steel')}</div>
+      ${I.chev}
+    </div>
+    ${open?`<div class="proj-body">
+      ${p.items.length?`<div class="tbl-wrap"><table><thead><tr><th>${L('البند','Item')}</th><th>${L('العنصر','Element')}</th><th>${L('الأنواع','Types')}</th><th class="n">${L('خرسانة م³','Concrete m³')}</th><th class="n">${L('حديد كغ','Steel kg')}</th><th class="n">${L('كغ/م³','kg/m³')}</th><th></th></tr></thead><tbody>
+      ${p.items.map(it=>`<tr><td>${esc(it.label)}</td><td><span class="tag">${elName(it.type)}</span></td>
+        <td style="font-size:var(--t-xs);color:var(--ink-2)">${it.types.map(x=>esc(x.name)).join(listSep())}</td>
+        <td class="n num">${f2(it.r.conc)}${it.r.plain?`<div class="muted" style="font-size:var(--t-xs)">+${f2(it.r.plain)} ${L('عادية','plain')}</div>`:''}</td>
+        <td class="n num" style="color:var(--rebar)">${fmt(it.r.steel,0)}</td><td class="n num">${fmt(it.r.ratio,0)}</td>
+        <td class="n" style="white-space:nowrap"><button class="btn ghost" data-act="openitem" data-p="${p.id}" data-v="${it.id}">${L('فتح','Open')}</button><button class="btn ghost danger" data-act="delitem" data-p="${p.id}" data-v="${it.id}" aria-label="${L('حذف البند','Delete item')}">${I.trash}</button></td></tr>`).join('')}
+      </tbody></table></div>`
+      :`<p class="muted">${L('لا توجد بنود في هذا المشروع. احسب عنصرًا واحفظه هنا.','This project has no items yet. Calculate an element and save it here.')}</p>`}
+      <div class="proj-actions">
+        <button class="btn danger ghost" data-act="delproj" data-v="${p.id}">${I.trash}${L('حذف المشروع','Delete project')}</button>
+        <button class="btn" data-act="copyproj" data-v="${p.id}" ${p.items.length?'':'disabled'}>${I.copy}${L('نسخ الملخص','Copy summary')}</button>
+        <button class="btn" data-act="report" data-v="${p.id}">${I.dash}${L('التقرير النهائي','Final report')}</button>
+        <button class="btn primary" data-act="addto" data-v="${p.id}">${I.plus}${L('إضافة بند','Add item')}</button>
+      </div></div>`:''}
+  </div>`;
+}
+
+const modeSwitch=(act,conc,labels)=>`<div class="mode-switch" role="tablist">
+  <button role="tab" id="mode-conc" aria-selected="${conc}" data-act="${act}" data-v="conc">${I.cube}<span><b>${labels[0]}</b><small>${labels[1]}</small></span></button>
+  <button role="tab" id="mode-steel" aria-selected="${!conc}" data-act="${act}" data-v="steel">${I.bars}<span><b>${labels[2]}</b><small>${labels[3]}</small></span></button>
+</div>`;
+
+function viewCalc(){
+  const el=ELEMENTS[S.type],e=E(),a=cur(),v=a.inputs,pre=tr(el.prefix);
+  const conc=S.mode==='conc',k2=isFoot(S.type)&&kindOf(v)===2;
+  const tabs=Object.keys(ELEMENTS).map(k=>`<button role="tab" id="el-${k}" aria-selected="${k===S.type}" data-act="type" data-v="${k}">${ICONS[k]}${elName(k)}</button>`).join('');
+  // each footing type picks its own kind, so isolated and combined footings can sit in one list
+  const kinds=isFoot(S.type)?`<div class="kind-switch" role="radiogroup" aria-label="${L('نوع القاعدة','Footing kind')} ${esc(a.name)}">
+      <button type="button" role="radio" data-act="footkind" data-v="1" aria-checked="${!k2}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="14" width="14" height="6"/><rect x="10" y="5" width="4" height="9"/></svg>${L('قاعدة منفصلة','Isolated footing')}</button>
+      <button type="button" role="radio" data-act="footkind" data-v="2" aria-checked="${k2}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="14" width="20" height="6"/><rect x="5" y="5" width="4" height="9"/><rect x="15" y="5" width="4" height="9"/></svg>${L('قاعدة مشتركة','Combined footing')}</button>
+    </div>`:'';
+  const field=f=>{
+    let ctl;
+    if(f.dia)ctl=`<select class="input num" id="f-${f.k}" data-k="${f.k}">${DIAS.map(d=>`<option value="${d}" ${+v[f.k]===d?'selected':''}>Ø${d} · ${fmtF(wpm(d),3)} kg/m</option>`).join('')}</select>`;
+    else if(f.select)ctl=`<select class="input" id="f-${f.k}" data-k="${f.k}">${f.select.map(([x,l])=>`<option value="${x}" ${+v[f.k]===x?'selected':''}>${tr(l)}</option>`).join('')}</select>`;
+    else ctl=`<input class="input num" id="f-${f.k}" data-k="${f.k}" inputmode="decimal" value="${esc(v[f.k])}" aria-describedby="m-${f.k}">`;
+    return`<div class="field" data-f="${f.k}"><label for="f-${f.k}"><span>${tr(f.label)}</span><span class="unit">${tr(f.unit)}</span></label>${ctl}<div class="msg" id="m-${f.k}"></div></div>`};
+  const vis=visibleKeys(S.type,S.mode,v);
+  const types=`<div class="types">
+    <div class="types-head"><b style="font-family:var(--display);font-weight:600">${L('الأنواع','Types')}</b><small>${L(`أضف نوعًا لكل مقاس مختلف، مثل ${pre}1 و${pre}2`,`Add a type for each different size, e.g. ${pre}1 and ${pre}2`)}</small></div>
+    <div class="chips">${e.list.map(t=>`<span class="chip ${t.id===e.active?'on':''}" id="chip-${t.id}">
+        <button type="button" data-act="seltype" data-v="${t.id}" aria-pressed="${t.id===e.active}"><span class="chip-name">${esc(t.name)||'—'}</span></button>
+        ${e.list.length>1?`<button type="button" class="x" data-act="deltype" data-v="${t.id}" aria-label="${L('حذف النوع','Remove type')} ${esc(t.name)}">×</button>`:''}</span>`).join('')}
+      <span class="chip chip-add"><button type="button" data-act="addtype">${L('+ إضافة نوع','+ Add type')}</button></span></div>
+    <div class="grid-f"><div class="field" data-f="__name"><label for="f-name"><span>${L('اسم النوع','Type name')}</span><span class="unit">${L('مثل','e.g.')} ${pre}1</span></label><input class="input" id="f-name" data-name="1" value="${esc(a.name)}" maxlength="20"><div class="msg"></div></div></div>
+  </div>`;
+  const ar=S.type==='slab'&&byArea(v);
+  const bySwitch=S.type==='slab'?`<div class="kind-switch" role="radiogroup" aria-label="${L('طريقة إدخال السقف','Slab input')} ${esc(a.name)}">
+      <button type="button" role="radio" data-act="slabby" data-v="1" aria-checked="${!ar}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="6" width="16" height="12"/><path d="M4 3h16M4 2v2M20 2v2M1 6v12M2 6H0M2 18H0" /></svg>${L('بالطول والعرض','Length × width')}</button>
+      <button type="button" role="radio" data-act="slabby" data-v="2" aria-checked="${ar}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h10v6h6v10H4z"/><text x="12" y="17" font-size="7" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial">m²</text></svg>${L('بالمساحة الكلية','Total area')}</button>
+    </div>`:'';
+  const form=types+kinds+bySwitch+el.groups.map(g=>{const fs=g.f.filter(f=>vis.has(f.k));
+      return fs.length?`<fieldset><legend>${tr(g.t)}</legend><div class="grid-f">${fs.map(field).join('')}</div></fieldset>`:''}).join('')
+    +(conc?'':`<p class="hint">${tr(k2?el.hint2:el.hint)}${ar?L(' عند الإدخال بالمساحة يُحسب الحديد لمربع بنفس المساحة، فهو تقريبي. للدقة استخدم الطول والعرض.',' With area entry the steel is worked out for a square of the same area, so it is approximate. Use length × width for an exact figure.'):''}</p>`);
+  return shell(`<div class="page-head"><div><span class="eyebrow">${conc?L('حساب الخرسانة','Concrete calculation'):L('حساب حديد التسليح','Rebar calculation')}</span><h1>${elName(S.type)}</h1></div>
+      <div class="actions"><button class="btn ghost" data-act="reset">${L('مسح الأنواع والبدء من جديد','Clear types and start over')}</button></div></div>
+    ${modeSwitch('mode',conc,[L('حساب الخرسانة','Concrete'),L('م³ · الأبعاد فقط','m³ · dimensions only'),L('حساب الحديد','Rebar'),L('كغ · طن · أسياخ 12 م','kg · tonnes · 12 m bars')])}
+    <div class="el-tabs" role="tablist" aria-label="${L('نوع العنصر','Element type')}">${tabs}</div>
+    <div class="calc">
+      <form class="sheet" id="calc-form" novalidate>${form}</form>
+      <div class="results" id="results"></div>
+    </div>`);
+}
+
+function nameErr(t,list){
+  const n=(t.name||'').trim();
+  if(!n)return L('أدخل اسم النوع.','Enter a type name.');
+  if(list.some(o=>o!==t&&(o.name||'').trim()===n))return L('هذا الاسم مستخدم لنوع آخر.','Another type already uses this name.');
+  return'';
+}
+
+function renderResults(){
+  const box=$('#results');if(!box)return;
+  const conc=S.mode==='conc',e=E(),a=cur();
+  const errMap={};const badTypes=[];
+  for(const t of e.list){const x=validate(S.type,t.inputs,S.mode);const ne=nameErr(t,e.list);if(ne)x.__name=ne;errMap[t.id]=x;if(Object.keys(x).length)badTypes.push(t)}
+  const ae=errMap[a.id];
+  document.querySelectorAll('#calc-form .field').forEach(f=>{const m=ae[f.dataset.f]||'';f.classList.toggle('err',!!m);f.querySelector('.msg').textContent=m;
+    const inp=f.querySelector('input,select');if(inp)inp.setAttribute('aria-invalid',m?'true':'false')});
+  for(const t of e.list){const c=document.getElementById('chip-'+t.id);if(c)c.classList.toggle('err',!!Object.keys(errMap[t.id]).length)}
+  const activeOk=!Object.keys(ae).length;
+  const v3=S.view3d!==false,cut=S.view2d==='section';
+  const flat=S.type==='slab'||isFoot(S.type);
+  const n2d=flat?[L('مسقط','Plan'),L('قطاع','Section')]:[L('مقطع عرضي','Cross'),L('قطاع طولي','Long section')];
+  const title2d=cut?(flat?L('قطاع رأسي','Vertical section'):L('قطاع طولي','Longitudinal section')):(flat?L('مسقط أفقي للتسليح','Reinforcement plan'):L('مقطع عرضي','Cross-section'));
+  const drawing=conc?'':`<div class="drawing"><div class="drawing-head"><span>${v3?L('نموذج ثلاثي الأبعاد','3D model'):title2d} · ${esc(a.name)}</span>
+      <span style="display:inline-flex;gap:.4rem;flex-wrap:wrap">
+      ${v3?'':`<span class="view-toggle" role="group" aria-label="${L('نوع الرسم','Drawing type')}"><button type="button" data-act="v2d" data-v="plan" aria-pressed="${!cut}">${n2d[0]}</button><button type="button" data-act="v2d" data-v="section" aria-pressed="${cut}">${n2d[1]}</button></span>`}
+      <span class="view-toggle" role="group" aria-label="${L('طريقة العرض','View')}"><button type="button" data-act="v3d" data-v="1" aria-pressed="${v3}">3D</button><button type="button" data-act="v3d" data-v="0" aria-pressed="${!v3}">2D</button></span></span></div>
+    ${!activeOk?`<div class="drawing-body"><p class="muted" style="padding:3rem 1rem;font-size:var(--t-sm)">${L('صحّح الحقول المظللة لعرض الرسم.','Fix the highlighted fields to show the drawing.')}</p></div>`
+      :v3?`<div class="drawing-body d3" id="view3d"><span class="d3-hint">${L('اسحب للتدوير · العجلة للتكبير · نقرتان لإعادة الضبط','Drag to rotate · wheel to zoom · double-click to reset')}</span><span class="d3-dims num">${dimsText(S.type,a.inputs)}</span></div>`
+      :`<div class="drawing-body">${cut?drawCut(S.type,a.inputs):drawSection(S.type,a.inputs)}</div>`}</div>`;
+  if(badTypes.length){
+    const names=badTypes.map(t=>esc(t.name||L('نوع بلا اسم','unnamed type'))).join(listSep());
+    box.innerHTML=drawing+`<div class="status bad">${I.warn}<span>${L(`صحّح الحقول المظللة في: ${names}. اضغط على اسم النوع لفتحه.`,`Fix the highlighted fields in: ${names}. Click a type name to open it.`)}</span></div>`;
+    const vh=$('#view3d');if(vh)mount3D(vh,S.type,a.inputs);
+    S.last=null;return;
+  }
+  const M=computeMulti(S.type,e.list);S.last=M;
+  const el=ELEMENTS[S.type];
+  const actions=`<div class="boq-actions">
+      <button class="btn primary" data-act="savecalc">${I.save}${L('حفظ في مشروع','Save to project')}</button>
+      <button class="btn" data-act="copycalc">${I.copy}${L('نسخ','Copy')}</button>
+      <button class="btn" data-act="xlsxcalc">${I.dl}Excel</button>
+    </div>`;
+  if(conc){
+    const plainRows=el.plainDims?M.parts.map(p=>{const d=el.plainDims(numObj(p.inputs));return d&&rowOf(p.name,d)}).filter(Boolean):[];
+    const rows=M.parts.map(p=>({...rowOf(p.name,el.dims(numObj(p.inputs))),kind:kindOf(p.inputs)}));
+    box.innerHTML=`<div class="boq calc-sheet" aria-live="polite">
+      ${plainRows.length?concTableHTML(secTitle('plain'),plainRows):''}
+      ${concTableHTML(secTitle(S.type),S.type==='footing'?footOrder(rows):rows)}
+      ${actions}</div>`;
+    return;
+  }
+  const[lo,hi]=RATIO[S.type],r0=fmt(M.ratio,0);
+  const st=M.ratio<lo?`<div class="status warn">${I.warn}<span>${L(`نسبة التسليح ${r0} كغ/م³ أقل من النطاق المعتاد (${lo}–${hi}). تأكد من عدد الأسياخ والأقطار.`,`Steel ratio ${r0} kg/m³ is below the typical range (${lo}–${hi}). Check the bar counts and diameters.`)}</span></div>`
+    :M.ratio>hi?`<div class="status warn">${I.warn}<span>${L(`نسبة التسليح ${r0} كغ/م³ أعلى من النطاق المعتاد (${lo}–${hi}). قد يصعب صب الخرسانة بين الأسياخ.`,`Steel ratio ${r0} kg/m³ is above the typical range (${lo}–${hi}). Concrete may be hard to place between the bars.`)}</span></div>`
+    :`<div class="status ok">${I.ok}<span>${L(`نسبة التسليح ${r0} كغ/م³ ضمن النطاق المعتاد لـ${elName(S.type)} (${lo}–${hi}).`,`Steel ratio ${r0} kg/m³ is within the typical range for ${elName(S.type).toLowerCase()} (${lo}–${hi}).`)}</span></div>`;
+  const srows=M.parts.flatMap(p=>p.bars.map(b=>({label:p.name,role:b.role,d:b.d,count:b.count,len:b.len,kg:b.kg})));
+  queueMicrotask(()=>{const vh=$('#view3d');if(vh)mount3D(vh,S.type,a.inputs)});
+  box.innerHTML=drawing+`<div class="boq calc-sheet" aria-live="polite">
+    ${steelTableHTML(L('بالطن حديد تسليح لزوم ','Reinforcing steel for ')+elName(S.type)+L('',', per tonne'),srows)}
+    ${orderTableHTML(L('طلبية الحديد','Rebar order'),M.dias)}
+    ${st}
+    ${actions}</div>`;
+}
+
+function calcSummary(type,M,mode){
+  const el=ELEMENTS[type],n=elName(type);
+  if(mode==='conc')return[`${L('حساب الخرسانة','Concrete calculation')} — ${n}`,
+    ...M.parts.map(p=>{const d=el.dims(numObj(p.inputs));return`  ${p.name}: ${d.n} × ${d.area?f2(d.L)+' '+L('م²','m²'):f2(d.L)+' × '+f2(d.W)} × ${f2(d.H)} = ${f3(p.conc)} ${M3()}${p.plain?` (+${f3(p.plain)} ${L('نظافة','blinding')})`:''}`}),
+    `${L('الإجمالي','Total')}: ${f3(M.conc)} ${M3()} ${L('خرسانة مسلحة','reinforced concrete')}${M.plain?` + ${f3(M.plain)} ${M3()} ${L('عادية','plain')}`:''}`].join('\n');
+  return[`${L('حساب الحديد','Rebar calculation')} — ${n}`,
+    ...M.parts.flatMap(p=>p.bars.map(b=>`  ${p.name} ${b.role} Ø${b.d}: ${fmt(b.count,0)} × ${f2(b.len)} m = ${fmtF(b.kg,1)} kg`)),
+    `${L('الإجمالي','Total')}: ${fmtF(M.steel,1)} kg (${f3(M.steel/1000)} t)`,
+    ...M.dias.map(d=>`  Ø${d.d}: ${d.bars12} × 12 m`)].join('\n');
+}
+
+/* ================== final report ================== */
+function dedBad(raw,gross){if(raw===''||raw==null)return false;const n=+raw;return isNaN(n)||n<0||n>gross}
+function reportData(p){
+  const ded=p.ded||{};
+  const secs=SECTIONS.map(s=>({...s,title:tr(s.title),short:tr(s.short),rows:[]}));const sec=k=>secs.find(s=>s.key===k);
+  const steel=[];
+  for(const it of p.items){
+    const el=ELEMENTS[it.type],multi=it.types.length>1;
+    it.types.forEach((t,i)=>{
+      const label=multi?`${t.name} — ${it.label}`:`${it.label}`;
+      const v=numObj(t.inputs);
+      const add=(s,key,lbl,d)=>{const r=rowOf(lbl,d);const raw=ded[key]??(i===0&&!key.endsWith('-p')?ded[it.id]:undefined);
+        r.raw=raw??'';r.bad=dedBad(raw,r.gross);r.ded=r.bad?0:(+raw||0);r.net=r.gross-r.ded;r.key=key;s.rows.push(r)};
+      add(sec(it.type),`${it.id}:${i}`,label,el.dims(v));
+      sec(it.type).rows[sec(it.type).rows.length-1].kind=kindOf(v);
+      if(el.plainDims){const pd=el.plainDims(v);if(pd)add(sec('plain'),`${it.id}:${i}-p`,label,pd)}
+      for(const b of compute(it.type,t.inputs).bars)steel.push({label,role:b.role,d:b.d,count:b.count,len:b.len,kg:b.kg});
+    });
+  }
+  const by={};for(const b of steel){const o=by[b.d]||(by[b.d]={d:b.d,len:0,kg:0});o.len+=b.count*b.len;o.kg+=b.kg}
+  const dias=Object.values(by).sort((a,b)=>a.d-b.d).map(o=>({...o,bars12:Math.ceil(o.len/BAR_LEN)}));
+  return{secs:secs.filter(s=>s.rows.length),steel,dias};
+}
+const STEEL_ALL=()=>L('بالطن حديد تسليح لجميع العناصر الخرسانية','Reinforcing steel for all concrete elements, per tonne');
+const ORDER_TITLE=()=>L('ملخص طلبية الحديد حسب القطر','Rebar order summary by diameter');
+const CONC_SUM=()=>L('ملخص كميات الخرسانة','Concrete quantities summary');
+const repTitle=mode=>mode==='steel'?L('حصر حديد التسليح','Rebar take-off'):L('حصر الخرسانة','Concrete take-off');
+
+function reportBody(p,editable,mode){
+  const D=reportData(p);
+  if(!D.secs.length)return'';
+  if(mode==='steel'){
+    return steelTableHTML(STEEL_ALL(),D.steel)+orderTableHTML(ORDER_TITLE(),D.dias)
+      +`<p class="rep-note">${L('أطوال الحديد تشمل وصلات التراكب (50Ø) والتثبيت (40Ø). عدد الأسياخ بطول 12 م مقرّب لأعلى.','Bar lengths include laps (50Ø) and anchorage (40Ø). The number of 12 m bars is rounded up.')}</p>`;
+  }
+  const tables=D.secs.map(s=>{
+    if(editable)s.rows.forEach(r=>r.dedCell=`<input class="ded${r.bad?' bad':''}" id="ded-${r.key}" data-ded="${r.key}" inputmode="decimal" value="${esc(r.raw)}" placeholder="—" aria-label="${H.ded()} ${esc(r.label)}" title="${r.bad?L('الخصم يجب أن يكون بين 0 و ','Deduction must be between 0 and ')+f3(r.gross):L('خصم بالمتر المكعب (تقاطعات، فتحات)','Deduction in m³ (intersections, openings)')}">`);
+    return concTableHTML(s.title,s.key==='footing'?footOrder(s.rows):s.rows)}).join('');
+  const total=sum(D.secs,s=>sum(s.rows,'net'));
+  return tables+`<section class="rep-sec"><h3>${CONC_SUM()}</h3>
+    <div class="tbl-wrap"><table class="boq-t">
+      <thead><tr><th style="width:55%">${H.desc()}</th><th>${H.unit()}</th><th>${L('الكمية','Quantity')}</th></tr></thead>
+      <tbody>${D.secs.map(s=>`<tr><td class="desc">${s.short}</td><td class="desc">${M3()}</td><td class="tot">${f3(sum(s.rows,'net'))}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td class="lbl" colspan="2">${L('إجمالي الخرسانة','Total concrete')}</td><td>${f3(total)}</td></tr></tfoot>
+    </table></div>
+    <p class="rep-note">${L('الأبعاد بالمتر. «إضافة» = العدد × الطول × العرض × الارتفاع، و«إجمالي» = الإضافة − الخصم.','Dimensions in metres. "Add" = count × length × width × height; "Total" = Add − Deduct.')}</p></section>`;
+}
+const META=()=>[[L('المشروع :','Project:'),'name'],[L('المالك :','Owner:'),'owner'],[L('الموقع :','Location:'),'location'],[L('التاريخ :','Date:'),'reportDate']];
+const SIGN=()=>[L('المهندس المسؤول','Engineer in charge'),L('المراجعة','Checked by'),L('الاعتماد','Approved by')];
+
+function viewReport(){
+  const p=S.data.projects.find(x=>x.id===S.reportId);
+  if(!p){S.view='dash';return viewDash()}
+  const st=S.repMode==='steel';
+  const body=reportBody(p,true,S.repMode);
+  const metaIds={name:'rep-proj',owner:'rep-owner',location:'rep-loc',reportDate:'rep-date'};
+  return shell(`<div class="page-head"><div><span class="eyebrow">${L('التقرير النهائي','Final report')} · ${repTitle(S.repMode)}</span><h1>${esc(p.name)}</h1></div>
+    <div class="actions"><button class="btn ghost" data-act="go" data-v="dash">${L('رجوع للمشاريع','Back to projects')}</button>
+      <button class="btn" data-act="repxlsx" ${body?'':'disabled'}>${I.dl}${L('تنزيل Excel','Download Excel')}</button>
+      <button class="btn primary" data-act="rephtml" ${body?'':'disabled'}>${I.dl}${L('تنزيل التقرير للطباعة','Download printable report')}</button></div></div>
+  ${modeSwitch('repmode',!st,[L('تقرير الخرسانة','Concrete report'),L('م³ لكل بند','m³ per item'),L('تقرير الحديد','Rebar report'),L('كغ · طن · أسياخ','kg · tonnes · bars')])}
+  <article class="report">
+    <div class="rep-top">
+      <div class="rep-co"><input id="rep-co" data-meta="contractor" value="${esc(p.contractor||'')}" placeholder="${L('اسم الشركة أو المكتب الهندسي','Company or engineering office name')}" aria-label="${L('اسم الشركة','Company name')}"></div>
+      <div class="rep-meta">${META().map(([lab,k])=>`<label for="${metaIds[k]}">${lab}</label><input id="${metaIds[k]}" data-meta="${k}" ${k==='reportDate'?'type="date"':''} value="${esc(k==='reportDate'?(p[k]||today()):(p[k]||''))}" placeholder="..........">`).join('')}</div>
+    </div>
+    ${body||`<div class="empty"><p>${L('لا توجد بنود محفوظة في هذا المشروع بعد. احسب العناصر من الحاسبة واحفظها هنا ليظهر جدول الكميات.','No items are saved in this project yet. Calculate elements and save them here to build the quantity tables.')}</p><button class="btn primary" data-act="addto" data-v="${p.id}">${I.plus}${L('إضافة بند','Add item')}</button></div>`}
+    <div class="rep-sign">${SIGN().map(s=>`<div>${s}</div>`).join('')}</div>
+  </article>
+  ${st?'':`<p class="note">${L('اكتب في عمود «خصم» أي كمية تُطرح من البند (تقاطعات الأعمدة مع الجسور، الفتحات). تُحفظ التعديلات تلقائيًا.','Enter any quantity to subtract in the "Deduct" column (column–beam intersections, openings). Changes save automatically.')}</p>`}`);
+}
+
+function reportHTMLFile(p,mode){
+  const title=repTitle(mode),rtl=LANG==='ar';
+  const css=`body{font-family:"IBM Plex Sans Arabic","IBM Plex Sans",Tahoma,sans-serif;color:#1a1a1a;background:#fff;margin:0;padding:24px}
+  .wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+  .top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;border-bottom:2px solid #000;padding-bottom:12px;flex-wrap:wrap}
+  .co{font-size:26px;font-weight:700;color:${palette().light.title}}.meta{display:grid;grid-template-columns:auto auto;gap:4px 12px;font-size:14px}.meta b{font-weight:700}
+  h3{color:${palette().light.title};font-size:18px;margin:0 0 8px}
+  table{border-collapse:collapse;width:100%;font-size:13px;border:2px solid #000}
+  th{background:${palette().light.head};border:1px solid #000;padding:7px 5px;text-align:center}
+  td{border-left:1px solid #000;border-right:1px solid #000;border-bottom:1px dashed #888;padding:6px;text-align:center;font-variant-numeric:tabular-nums}
+  td.tot{font-weight:700}tfoot td{border-top:2px solid #000;background:#f3f3f3;font-weight:700}tfoot td.lbl{text-align:start}
+  .rep-note{font-size:12px;color:#555;margin-top:8px}.tbl-wrap{overflow-x:auto}
+  .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;padding-top:40px;text-align:center;font-size:14px}.sign div{border-top:1px solid #999;padding-top:6px}
+  @media print{body{padding:0}th,tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact}.rep-sec{break-inside:avoid}}`;
+  return`<!doctype html><html lang="${LANG}" dir="${rtl?'rtl':'ltr'}"><head><meta charset="utf-8"><title>${title} - ${esc(p.name)}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap"><style>${css}</style></head>
+<body><div class="wrap"><div class="top"><div class="co">${esc(p.contractor||'')}</div>
+<div class="meta">${META().map(([lab,k])=>`<b>${lab}</b><span>${esc(k==='reportDate'?(p[k]||today()):(p[k]||'..........'))}</span>`).join('')}</div></div>
+<h2 style="margin:0;font-size:20px">${title}</h2>
+${reportBody(p,false,mode)}
+<div class="sign">${SIGN().map(s=>`<div>${s}</div>`).join('')}</div></div></body></html>`;
+}
+
+/* ================== Excel export (styled like the on-screen sheet) ================== */
+let excelP=null;
+function loadExcel(){
+  if(window.ExcelJS)return Promise.resolve(window.ExcelJS);
+  if(!excelP)excelP=new Promise((res,rej)=>{const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload=()=>window.ExcelJS?res(window.ExcelJS):rej(new Error('no ExcelJS'));
+    s.onerror=()=>{excelP=null;rej(new Error('load failed'))};document.head.appendChild(s)});
+  return excelP;
+}
+const XLSX_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+// spreadsheet colours follow the site palette (light variant, since sheets print on white)
+const argb=h=>'FF'+h.slice(1).toUpperCase();
+const XC={get yellow(){return argb(palette().light.head)},get red(){return argb(palette().light.title)},foot:'FFF2F2F2',ink:'FF000000'};
+const bThin={style:'thin',color:{argb:XC.ink}},bMed={style:'medium',color:{argb:XC.ink}},bDash={style:'dashed',color:{argb:'FF888888'}};
+const colL=n=>String.fromCharCode(64+n);
+const FONT='Arial';
+const xStart=()=>L('right','left');
+
+function xlSheet(wb,name){
+  const ws=wb.addWorksheet(name.replace(/[\\/*?:\[\]]/g,' ').slice(0,31),{views:[{rightToLeft:LANG==='ar',showGridLines:false}],
+    pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,horizontalCentered:true}});
+  ws.columns=[30,14,10,11,12,12,12,12,12].map(width=>({width}));
+  return{ws,r:1};
+}
+function xlLine(X,text,cols,{size=13,color=XC.red,bold=true}={}){
+  X.ws.mergeCells(X.r,1,X.r,cols);const c=X.ws.getCell(X.r,1);
+  c.value=text;c.font={name:FONT,bold,size,color:{argb:color}};c.alignment={horizontal:xStart(),vertical:'middle'};
+  X.ws.getRow(X.r).height=size+10;X.r++;
+}
+function xlMeta(X,p,title){
+  if(p.contractor)xlLine(X,p.contractor,9,{size:18});
+  for(const[lab,k]of META()){
+    const a=X.ws.getCell(X.r,1);a.value=lab;a.font={name:FONT,bold:true,size:11};a.alignment={horizontal:xStart()};
+    X.ws.mergeCells(X.r,2,X.r,5);const b=X.ws.getCell(X.r,2);b.value=k==='reportDate'?(p[k]||today()):(p[k]||'..........');b.font={name:FONT,size:11};b.alignment={horizontal:xStart()};X.r++;
+  }
+  X.r++;xlLine(X,title,9,{size:15,color:XC.ink});X.r++;
+}
+// top: [{t,c,c2?,rs?}] — rs:2 spans both header rows; sub: [{t,c}] or null for a single header row
+function xlHead(X,cols,top,sub){
+  const ws=X.ws,r1=X.r,r2=sub?X.r+1:X.r;
+  for(const h of top){
+    if(h.rs===2&&sub)ws.mergeCells(r1,h.c,r2,h.c);else if(h.c2)ws.mergeCells(r1,h.c,r1,h.c2);
+    ws.getCell(r1,h.c).value=h.t;
+  }
+  if(sub)for(const h of sub)ws.getCell(r2,h.c).value=h.t;
+  for(let r=r1;r<=r2;r++){ws.getRow(r).height=24;
+    for(let c=1;c<=cols;c++){const cell=ws.getCell(r,c);
+      cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.yellow}};
+      cell.font={name:FONT,bold:true,size:11};cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+      cell.border={top:r===r1?bMed:bThin,bottom:bThin,left:bThin,right:bThin}}}
+  X.r=r2+1;
+}
+function xlRow(X,vals,fmts,boldCols=[]){
+  const ws=X.ws;
+  vals.forEach((v,j)=>{const c=ws.getCell(X.r,j+1);c.value=v;
+    if(fmts[j]&&fmts[j]!=='@')c.numFmt=fmts[j];
+    c.font={name:FONT,size:11,bold:boldCols.includes(j+1)};c.alignment={horizontal:'center',vertical:'middle'};
+    c.border={left:bThin,right:bThin,bottom:bDash}});
+  ws.getRow(X.r).height=20;X.r++;
+}
+function xlFoot(X,cols,label,mergeTo,vals,fmt){
+  const ws=X.ws;if(mergeTo>1)ws.mergeCells(X.r,1,X.r,mergeTo);
+  ws.getCell(X.r,1).value=label;
+  vals.forEach((v,j)=>{ws.getCell(X.r,mergeTo+1+j).value=v});
+  for(let c=1;c<=cols;c++){const cell=ws.getCell(X.r,c);
+    if(c>mergeTo)cell.numFmt=Array.isArray(fmt)?fmt[c-mergeTo-1]:fmt;
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.foot}};
+    cell.font={name:FONT,bold:true,size:11};cell.alignment={horizontal:c<=mergeTo?xStart():'center',vertical:'middle'};
+    cell.border={top:bMed,bottom:bMed,left:bThin,right:bThin}}
+  ws.getRow(X.r).height=22;X.r+=2;
+}
+const xSum=(c,a,b,result)=>({formula:`SUM(${colL(c)}${a}:${colL(c)}${b})`,result});
+
+function xlConc(X,title,rows){
+  xlLine(X,ITEM()+title,9);
+  xlHead(X,9,[{t:H.desc(),c:1,rs:2},{t:H.unit(),c:2,rs:2},{t:H.count(),c:3,rs:2},{t:H.dims(),c:4,c2:6},{t:H.qty(),c:7,c2:9}],
+    [{t:H.len(),c:4},{t:H.wid(),c:5},{t:H.hgt(),c:6},{t:H.ded(),c:7},{t:H.add(),c:8},{t:H.tot(),c:9}]);
+  const a=X.r;
+  for(const x of rows){const i=X.r;
+    xlRow(X,[x.label,M3(),x.n,x.L,x.area?null:x.W,x.H,x.ded||null,{formula:x.area?`C${i}*D${i}*F${i}`:`C${i}*D${i}*E${i}*F${i}`,result:x.gross},{formula:`H${i}-G${i}`,result:x.net}],
+      ['@','@','0',x.area?`0.00" ${L('م²','m²')}"`:'0.00','0.00','0.00','0.000','0.000','0.000'],[9]);
+    // area entry: one merged cell across length and width
+    if(x.area)X.ws.mergeCells(i,4,i,5);
+  }
+  const b=X.r-1;
+  xlFoot(X,9,H.itemTot(),6,[xSum(7,a,b,sum(rows,'ded')),xSum(8,a,b,sum(rows,'gross')),xSum(9,a,b,sum(rows,'net'))],'0.000');
+}
+function xlSteel(X,title,rows){
+  xlLine(X,ITEM()+title,8);
+  xlHead(X,8,[{t:H.desc(),c:1,rs:2},{t:H.barType(),c:2,rs:2},{t:H.dia(),c:3,rs:2},{t:H.count(),c:4,rs:2},{t:H.lens(),c:5,c2:6},{t:H.qty(),c:7,c2:8}],
+    [{t:H.barLen(),c:5},{t:H.kgm(),c:6},{t:H.kg(),c:7},{t:H.ton(),c:8}]);
+  const a=X.r;
+  for(const x of rows){const i=X.r;
+    xlRow(X,[x.label,x.role,x.d,x.count,x.len,{formula:`C${i}*C${i}/162`,result:wpm(x.d)},{formula:`D${i}*E${i}*F${i}`,result:x.kg},{formula:`G${i}/1000`,result:x.kg/1000}],
+      ['@','@','0','0','0.00','0.000','0.0','0.000'],[8]);
+  }
+  const b=X.r-1,kg=sum(rows,'kg');
+  xlFoot(X,8,H.itemTot(),6,[xSum(7,a,b,kg),xSum(8,a,b,kg/1000)],['0.0','0.000']);
+}
+function xlOrder(X,title,dias){
+  xlLine(X,title,5);
+  xlHead(X,5,[{t:H.dia(),c:1},{t:H.totLen(),c:2},{t:H.kg(),c:3},{t:H.ton(),c:4},{t:H.bars12(),c:5}],null);
+  const a=X.r;
+  for(const d of dias){const i=X.r;
+    xlRow(X,['Ø'+d.d,d.len,{formula:`B${i}*${d.d}*${d.d}/162`,result:d.kg},{formula:`C${i}/1000`,result:d.kg/1000},{formula:`ROUNDUP(B${i}/12,0)`,result:d.bars12}],
+      ['@','0.0','0.0','0.000','0'],[5]);
+  }
+  const b=X.r-1;
+  xlFoot(X,5,H.total(),1,[xSum(2,a,b,sum(dias,'len')),xSum(3,a,b,sum(dias,'kg')),xSum(4,a,b,sum(dias,'kg')/1000),xSum(5,a,b,sum(dias,'bars12'))],['0.0','0.0','0.000','0']);
+}
+function xlConcSummary(X,secs){
+  xlLine(X,CONC_SUM(),3);
+  xlHead(X,3,[{t:H.desc(),c:1},{t:H.unit(),c:2},{t:L('الكمية','Quantity'),c:3}],null);
+  const a=X.r;
+  for(const s of secs)xlRow(X,[s.short,M3(),sum(s.rows,'net')],['@','@','0.000'],[3]);
+  xlFoot(X,3,L('إجمالي الخرسانة','Total concrete'),2,[xSum(3,a,X.r-1,sum(secs,s=>sum(s.rows,'net')))],'0.000');
+}
+async function saveWorkbook(build,filename){
+  toast(L('جارٍ تجهيز ملف Excel…','Preparing the Excel file…'));
+  let ExcelJS;
+  try{ExcelJS=await loadExcel()}catch(e){toast(L('تعذّر تحميل أداة Excel. تحقق من الاتصال بالإنترنت ثم أعد المحاولة.','Could not load the Excel tool. Check your internet connection and try again.'));return}
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='ConcreteCalc';wb.created=new Date();
+    build(wb);
+    const buf=await wb.xlsx.writeBuffer();
+    await offerFile(filename,new Blob([buf],{type:XLSX_MIME}));
+  }catch(e){toast(L('تعذّر إنشاء ملف Excel.','Could not create the Excel file.'))}
+}
+function reportXlsx(p,mode){
+  const D=reportData(p),steel=mode==='steel';
+  saveWorkbook(wb=>{
+    const X=xlSheet(wb,repTitle(mode));
+    xlMeta(X,p,repTitle(mode));
+    if(steel){xlSteel(X,STEEL_ALL(),D.steel);xlOrder(X,ORDER_TITLE(),D.dias)}
+    else{for(const s of D.secs)xlConc(X,s.title,s.key==='footing'?footOrder(s.rows):s.rows);xlConcSummary(X,D.secs)}
+  },fileSafe(p.name)+(steel?L('-حصر-حديد','-rebar-takeoff'):L('-حصر-خرسانة','-concrete-takeoff'))+'.xlsx');
+}
+function calcXlsx(){
+  const M=S.last,el=ELEMENTS[S.type],conc=S.mode==='conc',n=elName(S.type);if(!M)return;
+  saveWorkbook(wb=>{
+    const X=xlSheet(wb,(conc?L('خرسانة ','Concrete '):L('حديد ','Rebar '))+n);
+    xlLine(X,(conc?L('حساب الخرسانة — ','Concrete calculation — '):L('حساب الحديد — ','Rebar calculation — '))+n,9,{size:15,color:XC.ink});
+    xlLine(X,L('التاريخ : ','Date: ')+today(),9,{size:11,color:XC.ink,bold:false});X.r++;
+    if(conc){
+      const rc=M.parts.map(p=>({...rowOf(p.name,el.dims(numObj(p.inputs))),kind:kindOf(p.inputs)}));
+      const pr=el.plainDims?M.parts.map(p=>{const d=el.plainDims(numObj(p.inputs));return d&&rowOf(p.name,d)}).filter(Boolean):[];
+      if(pr.length)xlConc(X,secTitle('plain'),pr);
+      xlConc(X,secTitle(S.type),S.type==='footing'?footOrder(rc):rc);
+    }else{
+      xlSteel(X,L('بالطن حديد تسليح لزوم ','Reinforcing steel for ')+n+L('',', per tonne'),M.parts.flatMap(p=>p.bars.map(b=>({label:p.name,role:b.role,d:b.d,count:b.count,len:b.len,kg:b.kg}))));
+      xlOrder(X,L('طلبية الحديد','Rebar order'),M.dias);
+    }
+  },(conc?L('خرسانة-','concrete-'):L('حديد-','rebar-'))+fileSafe(n)+'-'+today()+'.xlsx');
+}
+
+/* ================== modals ================== */
+function modal(html){closeModal();const o=document.createElement('div');o.className='overlay';o.dir=L('rtl','ltr');o.innerHTML=`<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+  o.addEventListener('mousedown',e=>{if(e.target===o)closeModal()});document.body.appendChild(o);S.modal=o;const f=o.querySelector('input,select');f&&f.focus()}
+function closeModal(){if(S.modal){S.modal.remove();S.modal=null}}
+const cancelBtn=()=>`<button class="btn ghost" type="button" data-act="close">${L('إلغاء','Cancel')}</button>`;
+
+function saveModal(presetProject){
+  const P=S.data.projects;
+  const def=presetProject&&P.some(p=>p.id===presetProject)?presetProject:(P[0]&&P[0].id)||'__new';
+  const n=elName(S.type),cnt=E().list.length;
+  const names=E().list.map(t=>esc(t.name)).join(listSep());
+  modal(`<h3>${L(`حفظ ${n} في مشروع`,`Save ${n.toLowerCase()} to a project`)}</h3>
+    <p class="muted" style="font-size:var(--t-sm)">${L(`سيُحفظ ${cnt} ${cnt>1?'أنواع':'نوع'}: ${names}، بالخرسانة والحديد معًا.`,`${cnt} ${cnt>1?'types':'type'} will be saved: ${names}, with both concrete and rebar.`)}</p>
+    <form id="save-form" class="stack" novalidate>
+      <div class="field" data-f="label"><label for="save-label">${L('اسم البند','Item name')}</label><input class="input" id="save-label" value="" placeholder="${L(`مثال: ${n} الدور الأرضي`,`e.g. Ground floor ${n.toLowerCase()}`)}"><div class="msg"></div></div>
+      <div class="field"><label for="save-project">${L('المشروع','Project')}</label><select class="input" id="save-project">
+        ${P.map(p=>`<option value="${p.id}" ${p.id===def?'selected':''}>${esc(p.name)}</option>`).join('')}<option value="__new" ${def==='__new'?'selected':''}>${L('+ مشروع جديد…','+ New project…')}</option></select></div>
+      <div class="field" data-f="newname" id="newname-wrap" ${def==='__new'?'':'hidden'}><label for="save-newname">${L('اسم المشروع الجديد','New project name')}</label><input class="input" id="save-newname" placeholder="${L('فيلا حي النرجس','Al Narjis villa')}"><div class="msg"></div></div>
+      <div class="modal-actions"><button class="btn primary" type="submit">${I.save}${L('حفظ','Save')}</button>${cancelBtn()}</div>
+    </form>`);
+  $('#save-project').onchange=e=>{$('#newname-wrap').hidden=e.target.value!=='__new'};
+  $('#save-form').onsubmit=e=>{e.preventDefault();
+    const label=$('#save-label').value.trim(),pid=$('#save-project').value,nn=$('#save-newname').value.trim();
+    let ok=true;
+    const setE=(f,m)=>{const x=document.querySelector(`#save-form [data-f="${f}"]`);x.classList.toggle('err',!!m);x.querySelector('.msg').textContent=m;if(m)ok=false};
+    setE('label',label.length<2?L('أدخل اسمًا يميّز البند، مثل الدور أو المرحلة.','Enter a name that identifies the item, such as the floor or phase.'):label.length>80?L('الاسم أطول من 80 حرفًا.','The name is longer than 80 characters.'):'');
+    if(pid==='__new')setE('newname',nn.length<2?L('أدخل اسم المشروع.','Enter the project name.'):P.some(p=>p.name===nn)?L('يوجد مشروع بهذا الاسم.','A project with this name already exists.'):'');
+    if(!ok||!S.last)return;
+    let p=P.find(x=>x.id===pid);
+    if(pid==='__new'){p={id:uid(),name:nn,location:'',created:today(),items:[]};P.unshift(p)}
+    const types=E().list.map(t=>({name:t.name.trim(),inputs:{...t.inputs}}));
+    p.items.push({id:uid(),type:S.type,label,types,r:stripR(computeMulti(S.type,types)),date:today()});
+    S.lastProject=p.id;S.open[p.id]=true;save();closeModal();toast(L(`حُفظ «${label}» في ${p.name}.`,`Saved "${label}" to ${p.name}.`));
+  };
+}
+
+function projModal(){
+  modal(`<h3>${L('مشروع جديد','New project')}</h3><form id="proj-form" class="stack" novalidate>
+    <div class="field" data-f="pname"><label for="p-name">${L('اسم المشروع','Project name')}</label><input class="input" id="p-name" placeholder="${L('عمارة سكنية — 4 أدوار','Residential building — 4 floors')}"><div class="msg"></div></div>
+    <div class="field"><label for="p-loc">${L('الموقع','Location')} <span class="unit">${L('اختياري','optional')}</span></label><input class="input" id="p-loc" placeholder="${L('الرياض، حي الملقا','Riyadh, Al Malqa')}"></div>
+    <div class="modal-actions"><button class="btn primary" type="submit">${L('إنشاء المشروع','Create project')}</button>${cancelBtn()}</div></form>`);
+  $('#proj-form').onsubmit=e=>{e.preventDefault();const n=$('#p-name').value.trim();const f=$('#proj-form [data-f="pname"]');
+    const m=n.length<2?L('أدخل اسم المشروع (حرفان على الأقل).','Enter a project name (at least 2 characters).'):S.data.projects.some(p=>p.name===n)?L('يوجد مشروع بهذا الاسم.','A project with this name already exists.'):'';
+    f.classList.toggle('err',!!m);f.querySelector('.msg').textContent=m;if(m)return;
+    const p={id:uid(),name:n,location:$('#p-loc').value.trim(),created:today(),items:[]};S.data.projects.unshift(p);S.open[p.id]=true;save();closeModal();render();toast(L('أُنشئ المشروع ','Created project ')+n)};
+}
+function confirmModal(msg,okLabel,fn){
+  modal(`<h3>${msg}</h3><p class="muted">${L('لا يمكن التراجع عن هذه الخطوة.','This cannot be undone.')}</p><div class="modal-actions"><button class="btn primary" id="cm-ok" style="background:var(--bad);border-color:var(--bad)">${okLabel}</button>${cancelBtn()}</div>`);
+  $('#cm-ok').onclick=()=>{fn();closeModal();render()};$('#cm-ok').focus();
+}
+
+/* ================== sample project ================== */
+function exampleProject(){
+  const mk=(type,label,types)=>{const ts=types.map(([name,inp])=>({name,inputs:{...ELEMENTS[type].def,...inp}}));
+    return{id:uid(),type,label,types:ts,r:stripR(computeMulti(type,ts)),date:today()}};
+  const p=t=>tr(ELEMENTS[t].prefix);
+  return{id:uid(),name:L('فيلا سكنية دورين','Two-storey villa'),location:L('مثال توضيحي','Illustrative example'),created:today(),example:true,items:[
+    mk('footing',L('القواعد المنفصلة','Isolated footings'),[[p('footing')+'1',{n:9,L:1.8,W:1.6,D:60}],[p('footing')+'2',{n:2,L:2.0,W:1.7,D:60}],[p('footing')+'3',{n:2,L:2.4,W:2.0,D:70,d:18}]]),
+    mk('tie',L('سملات الربط','Tie beams'),[[p('tie')+'1',{n:16,L:4.2}],[p('tie')+'2',{n:6,L:3.0,h:50,nbB:3}]]),
+    mk('grade',L('قريد بيم تحت الجدران','Grade beams under walls'),[[p('grade')+'1',{n:10,L:5}]]),
+    mk('column',L('أعمدة الدور الأرضي','Ground floor columns'),[[p('column')+'1',{n:8,b:30,h:50,H:3.2,nb:8}],[p('column')+'2',{n:4,b:30,h:60,H:3.2,nb:10}],[p('column')+'3',{n:1,b:40,h:40,H:3.2,nb:8,db:18}]]),
+    mk('slab',L('سقف الدور الأرضي','Ground floor slab'),[[p('slab')+'1',{Lx:16,Ly:12,t:15}]]),
+    mk('column',L('أعمدة الدور الأول','First floor columns'),[[p('column')+'1',{n:8,b:30,h:40,H:3.1,nb:6,db:14}],[p('column')+'2',{n:5,b:30,h:50,H:3.1,nb:8,db:14}]]),
+    mk('slab',L('سقف الدور الأول','First floor slab'),[[p('slab')+'1',{Lx:16,Ly:12,t:15}]]),
+  ]};
+}
+
+/* ================== design panel: colours, sizes, motion (saved in this browser) ================== */
+// one main colour (amber) + one dark neutral; every other colour is derived from them in palette()
+const DS_DEF={v:2,brand:'#E3A21A',charcoal:'#1E1C19',
+  scale:100,radius:6,railW:232,weight:700,font:'Alexandria',anim:'rise',speed:350,hover:true};
+let DS=(()=>{const raw=store.get('cc.design',{})||{};
+  // designs saved before colours were unified drop their old per-part colours
+  if(raw.v!==2){for(const k of['brand','charcoal','conc','rebar','boqHead','boqTitle'])delete raw[k];raw.v=2}
+  return{...DS_DEF,...raw}})();
+const deviceReduces=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reducedMotion=()=>deviceReduces()&&!DS.forceMotion;
+const FONTS={'Alexandria':'Alexandria:wght@500;600;700;800','Cairo':'Cairo:wght@500;600;700;800','Readex Pro':'Readex+Pro:wght@500;600;700',
+  'Tajawal':'Tajawal:wght@500;700;800','Reem Kufi':'Reem+Kufi:wght@500;600;700','IBM Plex Sans Arabic':'IBM+Plex+Sans+Arabic:wght@500;600;700'};
+const PRESETS=[
+  {name:['كهرماني (افتراضي)','Amber (default)'],v:{brand:'#E3A21A',charcoal:'#1E1C19'}},
+  {name:['أزرق المخططات','Blueprint blue'],v:{brand:'#2F74B5',charcoal:'#15202C'}},
+  {name:['برتقالي السلامة','Safety orange'],v:{brand:'#E8681C',charcoal:'#201D1B'}},
+  {name:['أخضر هندسي','Engineering green'],v:{brand:'#2E8B57',charcoal:'#15211A'}},
+  {name:['رمادي فولاذي','Steel grey'],v:{brand:'#5B7A90',charcoal:'#1A1E22'}},
+  {name:['أحمر طوبي','Brick red'],v:{brand:'#B5452F',charcoal:'#211A18'}},
+];
+const hexOk=h=>/^#[0-9a-f]{6}$/i.test(h);
+const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const hex=a=>'#'+a.map(x=>Math.round(Math.max(0,Math.min(255,x))).toString(16).padStart(2,'0')).join('');
+const mix=(a,b,t)=>{const A=rgb(a),B=rgb(b);return hex(A.map((x,i)=>x+(B[i]-x)*t))};
+const lum=h=>{const c=rgb(h).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});return .2126*c[0]+.7152*c[1]+.0722*c[2]};
+const contrast=(a,b)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+// shift a colour toward black/white until it reads as text on the given ground
+function readable(c,ground,toward){for(let t=0;t<=1;t+=.05){const m=mix(c,toward,t);if(contrast(m,ground)>=4.5)return m}return toward}
+function ensureFont(name){
+  const id='font-'+name.replace(/\s+/g,'-');if(document.getElementById(id)||!FONTS[name])return;
+  const l=document.createElement('link');l.id=id;l.rel='stylesheet';l.href=`https://fonts.googleapis.com/css2?family=${FONTS[name]}&display=swap`;document.head.appendChild(l);
+}
+const inkOn=c=>contrast(c,'#1B1A17')>=contrast(c,'#FFFFFF')?'#1B1A17':'#FFFFFF';
+// the whole colour system, derived from the main colour and the dark neutral
+function palette(d=DS){
+  const b=d.brand,c=d.charcoal;
+  return{
+    brand:b,brandInk:inkOn(b),charcoal:c,
+    light:{accent:readable(b,'#FFFFFF','#000000'),soft:mix(b,'#FFFFFF',.8),
+      head:mix(b,'#FFFFFF',.68),headInk:'#1B1A17',title:readable(mix(b,'#000000',.2),'#FFFFFF','#000000'),
+      steel:readable(b,'#FFFFFF','#000000'),steelSoft:mix(b,'#FFFFFF',.84),conc:mix(c,'#FFFFFF',.4),
+      charcoal:c,charcoal2:mix(c,'#FFFFFF',.07)},
+    dark:{accent:readable(b,'#22211E','#FFFFFF'),soft:mix(b,'#000000',.74),
+      head:mix(b,'#000000',.6),headInk:mix(b,'#FFFFFF',.8),title:readable(b,'#22211E','#FFFFFF'),
+      steel:readable(mix(b,'#FFFFFF',.15),'#22211E','#FFFFFF'),steelSoft:mix(b,'#000000',.76),conc:mix(c,'#FFFFFF',.62),
+      charcoal:mix(c,'#000000',.5),charcoal2:mix(c,'#000000',.1)},
+  };
+}
+const varsFor=m=>`--accent:${m.accent};--accent-soft:${m.soft};--boq-head:${m.head};--boq-head-ink:${m.headInk};--boq-title:${m.title};
+  --rebar:${m.steel};--rebar-soft:${m.steelSoft};--conc:${m.conc};--charcoal:${m.charcoal};--charcoal-2:${m.charcoal2};`;
+function applyDesign(){
+  const d=DS,P=palette(d);
+  ensureFont(d.font);
+  const anim={none:'none',fade:'cc-fade',rise:'cc-rise',slide:'cc-slide',zoom:'cc-zoom'}[d.anim]||'none';
+  const darkVars='color-scheme:dark;'+varsFor(P.dark);
+  const css=`:root{--brand:${P.brand};--brand-ink:${P.brandInk};${varsFor(P.light)}
+    --r:${d.radius}px;--rail-w:${d.railW}px;--hw:${d.weight};--dur:${d.speed}ms;--enter-anim:${anim};
+    --display:"${d.font}","IBM Plex Sans Arabic",Tahoma,sans-serif}
+  html{font-size:${d.scale}%}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${darkVars}}}
+  :root[data-theme="dark"]{${darkVars}}`;
+  let st=document.getElementById('cc-design');
+  if(!st){st=document.createElement('style');st.id='cc-design';}
+  document.body.appendChild(st);   // keep it last so it wins over the page stylesheet
+  st.textContent=css;
+  const app=document.getElementById('app');if(app)app.dataset.hover=d.hover?'1':'0';
+  if(d.forceMotion)document.documentElement.dataset.motion='on';else delete document.documentElement.dataset.motion;
+}
+let skyColourT;
+const saveDesign=()=>{store.set('cc.design',DS);applyDesign();
+  // the hero sky is painted from the palette, so repaint it (debounced while a colour picker is dragged)
+  clearTimeout(skyColourT);skyColourT=setTimeout(()=>{if(S.view==='auth'&&initSky.rebuild)initSky.rebuild()},120)};
+
+const dz=document.createElement('aside');dz.className='designer';dz.hidden=true;dz.setAttribute('role','dialog');document.body.appendChild(dz);
+function designerHTML(){
+  const col=(k,label)=>`<div class="dz-row"><span>${label}</span><span class="dz-color">
+    <input type="color" id="dz-${k}" data-ds="${k}" value="${DS[k]}" aria-label="${label}"><input type="text" id="dz-${k}-hex" data-dshex="${k}" value="${DS[k]}" maxlength="7" aria-label="${label} hex"></span></div>`;
+  const rng=(k,label,min,max,step,unit)=>`<label class="dz-range" for="dz-${k}"><span class="top"><span>${label}</span><output id="dz-${k}-out">${DS[k]}${unit}</output></span>
+    <input type="range" id="dz-${k}" data-ds="${k}" data-unit="${unit}" min="${min}" max="${max}" step="${step}" value="${DS[k]}"></label>`;
+  const sel=(k,label,opts)=>`<div class="dz-row"><label for="dz-${k}">${label}</label><select class="input" id="dz-${k}" data-ds="${k}" style="width:auto;min-height:2rem;padding:.25rem .5rem">
+    ${opts.map(([v,l])=>`<option value="${v}" ${String(DS[k])===String(v)?'selected':''}>${l}</option>`).join('')}</select></div>`;
+  return`<div class="dz-head"><b>${L('تخصيص التصميم','Customize design')}</b><button class="dz-close" data-dz="close" aria-label="${L('إغلاق','Close')}">×</button></div>
+  <div class="dz-body">
+    <section class="dz-sec"><h4>${L('قوالب جاهزة','Presets')}</h4><div class="dz-presets">
+      ${PRESETS.map((p,i)=>{const P=palette(p.v),on=p.v.brand.toLowerCase()===DS.brand.toLowerCase()&&p.v.charcoal.toLowerCase()===DS.charcoal.toLowerCase();
+        return`<button class="dz-preset" data-preset="${i}" aria-pressed="${on}" style="${on?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)':''}"><span class="sw">${[P.charcoal,P.brand,P.light.head,P.light.title,P.light.conc].map(c=>`<i style="background:${c}"></i>`).join('')}</span>${tr(p.name)}</button>`}).join('')}
+    </div></section>
+    <section class="dz-sec"><h4>${L('الألوان','Colours')}</h4>
+      ${col('brand',L('اللون الرئيسي','Main colour'))}
+      ${col('charcoal',L('اللون الداكن','Dark colour'))}
+      <p class="hint" style="margin:0">${L('باقي الألوان تُشتق تلقائيًا من هذين اللونين: رؤوس الجداول وعناوين البنود والحديد في الرسوم من اللون الرئيسي، والشريط الجانبي والتذييل والخرسانة في الرسوم من اللون الداكن.','All other colours come from these two: table headers, item titles and steel in charts from the main colour; the sidebar, footer and concrete in charts from the dark colour.')}</p>
+    </section>
+    <section class="dz-sec"><h4>${L('الأحجام والخط','Sizes and type')}</h4>
+      ${rng('scale',L('حجم الخط العام','Overall text size'),85,125,5,'%')}
+      ${rng('radius',L('استدارة الزوايا','Corner radius'),0,20,1,'px')}
+      ${rng('railW',L('عرض الشريط الجانبي','Sidebar width'),190,320,2,'px')}
+      ${sel('weight',L('سُمك العناوين','Heading weight'),[[500,L('عادي','Regular')],[600,L('متوسط','Medium')],[700,L('عريض','Bold')],[800,L('عريض جدًا','Extra bold')]])}
+      ${sel('font',L('خط العناوين','Heading font'),Object.keys(FONTS).map(f=>[f,f]))}
+    </section>
+    <section class="dz-sec"><h4>${L('الحركة','Motion')}</h4>
+      ${sel('anim',L('حركة ظهور الصفحة','Page entrance'),[['none',L('بدون','None')],['fade',L('تلاشي','Fade')],['rise',L('صعود','Rise')],['slide',L('انزلاق','Slide')],['zoom',L('تكبير','Zoom')]])}
+      ${rng('speed',L('سرعة الحركة','Animation speed'),100,900,50,'ms')}
+      <label class="dz-check" for="dz-hover"><input type="checkbox" id="dz-hover" data-ds="hover" ${DS.hover?'checked':''}>${L('رفع البطاقات والأزرار عند المرور','Lift cards and buttons on hover')}</label>
+      ${deviceReduces()?`<p class="hint" style="margin:0">${L('جهازك مضبوط على «تقليل الحركة»، لذلك يوقف الموقع الحركة. فعّل الخيار التالي لتشغيلها.','Your device is set to reduce motion, so the site stops animations. Turn on the option below to play them.')}</p>`:''}
+      <label class="dz-check" for="dz-forceMotion"><input type="checkbox" id="dz-forceMotion" data-ds="forceMotion" ${DS.forceMotion?'checked':''}>${L('تشغيل الحركة حتى لو طلب الجهاز تقليلها','Play motion even if the device asks to reduce it')}</label>
+      <button class="btn" data-dz="replay" style="align-self:flex-start">${L('معاينة الحركة','Preview animation')}</button>
+    </section>
+  </div>
+  <div class="dz-foot"><span>${L('يُحفظ تلقائيًا في هذا المتصفح','Saved automatically in this browser')}</span><button class="btn ghost danger" data-dz="reset">${L('استعادة الافتراضي','Restore defaults')}</button></div>`;
+}
+function openDesigner(){dz.dir=L('rtl','ltr');dz.lang=LANG;dz.setAttribute('aria-label',L('تخصيص التصميم','Customize design'));dz.innerHTML=designerHTML();dz.hidden=false;const c=dz.querySelector('.dz-close');c&&c.focus()}
+function closeDesigner(){dz.hidden=true}
+function playEntrance(){
+  const host=$('main')||$('.hero-inner');if(!host)return;
+  [...host.children].forEach((c,i)=>c.style.setProperty('--i',Math.min(i,8)));
+  host.classList.remove('enter');void host.offsetWidth;host.classList.add('enter');
+}
+dz.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.ds){const k=t.dataset.ds;
+    DS[k]=t.type==='checkbox'?t.checked:t.type==='range'||k==='weight'?+t.value:t.value;
+    if(t.type==='range'){const o=document.getElementById(`dz-${k}-out`);if(o)o.textContent=t.value+t.dataset.unit}
+    if(t.type==='color'){const h=document.getElementById(`dz-${k}-hex`);if(h){h.value=t.value;h.classList.remove('bad')}}
+    saveDesign();
+    if(k==='forceMotion'&&S.view==='auth'){initSky();const d=document.querySelector('.dots button[aria-current="true"] .bar');if(d){d.style.animation='none';void d.offsetWidth;d.style.animation=''}}
+  }else if(t.dataset.dshex){const k=t.dataset.dshex,v=t.value.trim();const ok=hexOk(v);t.classList.toggle('bad',!ok);
+    if(ok){DS[k]=v.toUpperCase();const c=document.getElementById('dz-'+k);if(c)c.value=v;saveDesign()}}
+});
+dz.addEventListener('change',e=>{if(e.target.id==='dz-anim')playEntrance()});
+dz.addEventListener('click',e=>{
+  const b=e.target.closest('[data-dz],[data-preset]');if(!b)return;
+  if(b.dataset.preset!=null){Object.assign(DS,PRESETS[+b.dataset.preset].v);saveDesign();dz.innerHTML=designerHTML();toast(L('طُبّق القالب ','Applied preset ')+tr(PRESETS[+b.dataset.preset].name))}
+  else if(b.dataset.dz==='close')closeDesigner();
+  else if(b.dataset.dz==='replay')playEntrance();
+  else if(b.dataset.dz==='reset'){DS={...DS_DEF};saveDesign();dz.innerHTML=designerHTML();toast(L('أُعيد التصميم الافتراضي.','Default design restored.'))}
+});
+const BRUSH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14.5 3.5l6 6L11 19l-6-6z"/><path d="M5 13l-2 6 6-2"/><path d="M12.5 5.5l6 6"/></svg>';
+const designBtn=(extra='')=>`<button class="btn ghost" data-act="design" ${extra}>${BRUSH}${L('تخصيص التصميم','Customize design')}</button>`;
+
+/* ================== render & events ================== */
+function render(){
+  applyLang();
+  const app=$('#app');
+  app.innerHTML=S.view==='auth'?viewAuth():S.view==='calc'?viewCalc():S.view==='report'?viewReport():viewDash();
+  if(S.view==='calc')renderResults();
+  if(S.view==='auth'){bindAuth();initSky()}
+  if(S.view==='dash')wirePanels();
+  // play the entrance only when the screen changes, not on every re-render
+  if(S._lastView!==S.view){S._lastView=S.view;if(DS.anim!=='none')playEntrance()}
+  if(!dz.hidden&&dz.dir!==L('rtl','ltr'))openDesigner();
+}
+
+function bindAuth(){
+  $('#auth-form').onsubmit=async e=>{e.preventDefault();
+    const login=S.authTab==='login';
+    const g=id=>{const el=$(id);return el?el.value.trim():''};
+    const name=g('#a-name'),email=g('#a-email').toLowerCase(),pw=$('#a-pw').value,pw2=$('#a-pw2')?$('#a-pw2').value:'';
+    const errs={};
+    if(!login&&name.length<2)errs.name=L('أدخل اسمك (حرفان على الأقل).','Enter your name (at least 2 characters).');
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))errs.email=L('أدخل بريدًا إلكترونيًا صالحًا مثل name@example.com.','Enter a valid email such as name@example.com.');
+    if(!pw)errs.pw=L('أدخل كلمة المرور.','Enter your password.');
+    else if(!login&&pw.length<8)errs.pw=L('كلمة المرور 8 أحرف على الأقل.','Use at least 8 characters.');
+    else if(!login&&!(/[A-Za-z؀-ۿ]/.test(pw)&&/\d/.test(pw)))errs.pw=L('استخدم أحرفًا وأرقامًا معًا.','Use both letters and numbers.');
+    if(!login&&pw!==pw2)errs.pw2=L('كلمتا المرور غير متطابقتين.','The passwords do not match.');
+    document.querySelectorAll('#auth-form .field').forEach(f=>{const m=errs[f.dataset.f]||'';f.classList.toggle('err',!!m);f.querySelector('.msg').textContent=m});
+    const box=$('#auth-err');box.hidden=true;
+    if(Object.keys(errs).length)return;
+    const U=users();
+    if(login){
+      const u=U[email];
+      if(!u||await hash(pw,u.salt)!==u.hash){box.textContent=L('البريد أو كلمة المرور غير صحيحة. تحقق منهما أو أنشئ حسابًا جديدًا.','Incorrect email or password. Check them or create a new account.');box.hidden=false;return}
+      signIn(email,u);
+    }else{
+      if(U[email]){box.textContent=L('هذا البريد مسجّل مسبقًا على هذا الجهاز. سجّل الدخول بدلًا من ذلك.','This email is already registered on this device. Sign in instead.');box.hidden=false;return}
+      const salt=uid();U[email]={name,salt,hash:await hash(pw,salt),created:today()};store.set('cc.users',U);
+      store.set(dataKey(email),{projects:[]});signIn(email,U[email]);toast(L('أُنشئ حسابك. ابدأ بإنشاء مشروع.','Account created. Start by creating a project.'));
+    }
+  };
+}
+function signIn(email,u){S.user={name:u.name,email};S.data=normalize(store.get(dataKey(email),null));save();store.set('cc.session',email);S.view='dash';render()}
+
+// next free name with the element's prefix; footings use ق for isolated and قم for combined
+function nextName(list,kind){
+  const pre=isFoot(S.type)&&kind?tr(KIND_PREFIX[kind]):tr(ELEMENTS[S.type].prefix);
+  const used=new Set(list.map(t=>t.name));let n=1;while(used.has(pre+n))n++;return pre+n;
+}
+function switchLang(){
+  LANG=LANG==='ar'?'en':'ar';store.set('cc.lang',LANG);
+  // rename untouched default type names (ع1 ↔ C1) so new sessions read naturally
+  for(const k in ELEMENTS){const[a,b]=ELEMENTS[k].prefix,from=LANG==='en'?a:b,to=LANG==='en'?b:a;
+    for(const t of S.vals[k].list){const m=t.name.match(new RegExp('^'+from+'(\\d+)$'));if(m)t.name=to+m[1]}}
+  const y=scrollY;render();scrollTo(0,y);
+  toast(L('تم التبديل إلى العربية.','Switched to English.'));
+}
+
+const app=$('#app');
+app.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b||b.disabled)return;
+  const a=b.dataset.act,v=b.dataset.v;
+  const proj=id=>S.data.projects.find(x=>x.id===id);
+  if(a==='lang')switchLang();
+  else if(a==='theme')toggleTheme();
+  else if(a==='v3d'){S.view3d=v==='1';renderResults()}
+  else if(a==='v2d'){S.view2d=v;renderResults()}
+  else if(a==='design'){dz.hidden?openDesigner():closeDesigner()}
+  else if(a==='authtab'){S.authTab=v;render()}
+  else if(a==='startsignup'){S.authTab='signup';render();const n=$('#a-name');if(n)n.focus()}
+  else if(a==='slide')setSlide(+v);
+  else if(a==='scrollto'){const f=document.getElementById(v);if(f)f.scrollIntoView({behavior:'smooth',block:'start'})}
+  else if(a==='demo'){
+    const U=users(),em='demo@concretecalc.local';
+    if(!U[em]){U[em]={name:L('مستخدم تجريبي','Demo user'),salt:'demo',hash:'',demo:true,created:today()};store.set('cc.users',U);store.set(dataKey(em),{projects:[exampleProject()]})}
+    signIn(em,U[em]);
+  }
+  else if(a==='go'){S.view=v;render();scrollTo(0,0)}
+  else if(a==='logout'){store.del('cc.session');S.user=null;S.view='auth';S.authTab='login';render()}
+  else if(a==='type'){S.type=v;render()}
+  else if(a==='slabby'){
+    // switching to area fills it from the current length × width (and back), so the volume stays the same
+    const t=cur(),k=+v;if((byArea(t.inputs)?2:1)===k)return;
+    const i=t.inputs;
+    if(k===2){const A=(+i.Lx||0)*(+i.Ly||0);i.A=A>0?+A.toFixed(2):(i.A||108)}
+    else{const s=Math.sqrt(+i.A||0);if(!(+i.Lx>0&&+i.Ly>0&&Math.abs(i.Lx*i.Ly-i.A)<.01)){i.Lx=+s.toFixed(2);i.Ly=+s.toFixed(2)}}
+    i.by=k;render()}
+  else if(a==='footkind'){
+    // switching a type's kind loads that kind's starting sizes; a default-style name follows the kind (ق1 ↔ قم1)
+    const t=cur(),k=+v;if(kindOf(t.inputs)===k)return;
+    const F0=ELEMENTS.footing;t.inputs={...F0.def,...(k===2?F0.def2:{})};
+    const oldPre=tr(KIND_PREFIX[k===2?1:2]);if(new RegExp('^'+oldPre+'\\d+$').test(t.name))t.name=nextName(E().list.filter(x=>x!==t),k);
+    render();toast(k===2?L(`${t.name} الآن قاعدة مشتركة.`,`${t.name} is now a combined footing.`):L(`${t.name} الآن قاعدة منفصلة.`,`${t.name} is now an isolated footing.`))}
+  else if(a==='mode'){S.mode=v;render()}
+  else if(a==='seltype'){E().active=v;render()}
+  else if(a==='addtype'){const e2=E(),src=cur(),id=uid();e2.list.push({id,name:nextName(e2.list,isFoot(S.type)?kindOf(src.inputs):0),inputs:{...src.inputs}});e2.active=id;render();
+    const n=$('#f-name');if(n){n.focus();n.select()}toast(L(`أُضيف نوع جديد بنفس مقاسات ${src.name}. عدّل أبعاده.`,`New type added with the same sizes as ${src.name}. Edit its dimensions.`))}
+  else if(a==='deltype'){const e2=E();if(e2.list.length<2)return;const t=e2.list.find(x=>x.id===v);e2.list=e2.list.filter(x=>x.id!==v);
+    if(e2.active===v)e2.active=e2.list[0].id;render();toast(L('حُذف النوع ','Removed type ')+(t?t.name:''))}
+  else if(a==='reset'){S.vals[S.type]=freshEl(S.type);render();toast(L('بدأت قائمة أنواع جديدة بالقيم الافتراضية.','Started a new type list with default values.'))}
+  else if(a==='toggle'){S.open[v]=!S.open[v];render()}
+  else if(a==='newproj')projModal();
+  else if(a==='seed'){S.data.projects.unshift(exampleProject());save();render();toast(L('أُضيف مشروع نموذجي معلَّم «مثال».','Added a sample project marked "Example".'))}
+  else if(a==='addto'){S.lastProject=v;S.view='calc';render();scrollTo(0,0)}
+  else if(a==='delproj'){const p=proj(v);confirmModal(L(`حذف المشروع «${esc(p.name)}» وكل بنوده؟`,`Delete project "${esc(p.name)}" and all its items?`),L('حذف المشروع','Delete project'),()=>{S.data.projects=S.data.projects.filter(x=>x.id!==v);save();toast(L('حُذف المشروع.','Project deleted.'))})}
+  else if(a==='delitem'){const p=proj(b.dataset.p);const it=p.items.find(x=>x.id===v);confirmModal(L(`حذف البند «${esc(it.label)}»؟`,`Delete item "${esc(it.label)}"?`),L('حذف البند','Delete item'),()=>{p.items=p.items.filter(x=>x.id!==v);save();toast(L('حُذف البند.','Item deleted.'))})}
+  else if(a==='openitem'){const p=proj(b.dataset.p);const it=p.items.find(x=>x.id===v);
+    const list=it.types.map(t=>({id:uid(),name:t.name,inputs:{...ELEMENTS[it.type].def,...t.inputs}}));
+    S.type=it.type;S.vals[it.type]={list,active:list[0].id};S.lastProject=p.id;S.view='calc';render();scrollTo(0,0);
+    toast(L(`فُتح «${it.label}» للتعديل. احفظه كبند جديد بعد التعديل.`,`Opened "${it.label}" for editing. Save it as a new item when done.`))}
+  else if(a==='copyproj'){const p=proj(v);const t=projTotals(p);
+    copyText([`${L('مشروع','Project')}: ${p.name}`,...p.items.map(it=>`- ${it.label} (${it.types.map(x=>x.name).join(listSep())}): ${f2(it.r.conc)} ${M3()} / ${fmt(it.r.steel,0)} kg`),
+      `${L('الإجمالي','Total')}: ${f2(t.conc)} ${M3()} ${L('خرسانة مسلحة','reinforced concrete')}, ${fmt(t.steel,0)} kg ${L('حديد','steel')}`].join('\n'))}
+  else if(a==='backup'){offerFile('concretecalc-backup-'+today()+'.json',JSON.stringify({user:S.user.email,exported:new Date().toISOString(),...S.data},null,2))}
+  else if(a==='report'){S.reportId=v;S.view='report';render();scrollTo(0,0)}
+  else if(a==='repmode'){S.repMode=v;render()}
+  else if(a==='repxlsx')reportXlsx(proj(S.reportId),S.repMode);
+  else if(a==='rephtml'){const p=proj(S.reportId);offerFile(fileSafe(p.name)+(S.repMode==='steel'?L('-حصر-حديد','-rebar-takeoff'):L('-حصر-خرسانة','-concrete-takeoff'))+'.html',reportHTMLFile(p,S.repMode))}
+  else if(a==='savecalc'){if(!S.last)return;
+    // a saved item feeds both reports, so the other calculation's fields must be valid for every type too
+    const other=S.mode==='conc'?'steel':'conc';
+    const bad=E().list.find(t=>Object.keys(validate(S.type,t.inputs,other)).length);
+    if(bad){S.mode=other;E().active=bad.id;render();toast(other==='steel'?L(`بيانات التسليح في ${bad.name} غير صحيحة. صحّحها ثم احفظ.`,`The rebar data for ${bad.name} is invalid. Fix it, then save.`):L(`الأبعاد في ${bad.name} غير صحيحة. صحّحها ثم احفظ.`,`The dimensions for ${bad.name} are invalid. Fix them, then save.`));return}
+    saveModal(S.lastProject)}
+  else if(a==='copycalc'){if(S.last)copyText(calcSummary(S.type,S.last,S.mode))}
+  else if(a==='xlsxcalc')calcXlsx();
+});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act="close"]');if(b&&S.modal&&S.modal.contains(b))closeModal()});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(S.modal)closeModal();else if(!dz.hidden)closeDesigner()}
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('.proj-head')){e.preventDefault();e.target.click()}
+});
+app.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.k){cur().inputs[t.dataset.k]=t.value;renderResults()}
+  else if(t.dataset.name){const a=cur();a.name=t.value;const c=document.querySelector(`#chip-${a.id} .chip-name`);if(c)c.textContent=t.value.trim()||'—';renderResults()}
+});
+app.addEventListener('change',e=>{
+  const t=e.target;if(S.view!=='report')return;
+  const p=S.data.projects.find(x=>x.id===S.reportId);if(!p)return;
+  if(t.dataset.meta){const k=t.dataset.meta,val=t.value.trim();
+    if(k==='name'&&val.length<2){t.value=p.name;toast(L('اسم المشروع حرفان على الأقل.','The project name needs at least 2 characters.'));return}
+    p[k]=val;save();if(k==='name')render();toast(L('حُفظ التعديل.','Change saved.'))}
+  else if(t.dataset.ded){p.ded=p.ded||{};p.ded[t.dataset.ded]=t.value.trim();save();
+    const y=scrollY;render();scrollTo(0,y);
+    const el=document.getElementById(t.id);if(el&&el.classList.contains('bad'))toast(L('الخصم يجب أن يكون رقمًا بين صفر وكمية الإضافة. لم يُطبَّق.','The deduction must be a number between zero and the added quantity. It was not applied.'))}
+});
+app.addEventListener('submit',e=>{if(e.target.id==='calc-form')e.preventDefault()});
+
+applyTheme();applyDesign();load();render();
+})();
+</script>
