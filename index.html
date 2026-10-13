@@ -1,6 +1,3 @@
-<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ConcreteCalc</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -324,8 +321,6 @@ main{padding:1.75rem clamp(1rem,3vw,2.5rem) 3rem;display:flex;flex-direction:col
 [data-hover="1"] .proj:hover,[data-hover="1"] .panel:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
 
 /* ---------- DESIGN PANEL ---------- */
-.designer[hidden]{display:none}
-body{margin:0}
 .designer{position:fixed;top:0;bottom:0;inset-inline-end:0;width:min(340px,100%);background:var(--raised);color:var(--ink);border-inline-start:1px solid var(--line);box-shadow:0 0 40px rgba(0,0,0,.22);z-index:80;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);font-family:var(--body)}
 .dz-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.85rem 1rem;background:var(--charcoal);color:var(--on-dark)}
 .dz-head b{font-family:var(--display);font-size:var(--t-md)}
@@ -482,6 +477,9 @@ legend small{font-family:var(--body);font-weight:400;color:var(--muted);font-siz
 .mode-switch button:hover{border-color:var(--ink-2)}
 #mode-conc[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 #mode-steel[aria-selected="true"]{border-color:var(--rebar);background:var(--rebar-soft);color:var(--rebar)}
+.mode-switch.three{grid-template-columns:repeat(3,minmax(0,1fr));max-width:940px}
+#mode-fin[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+@media (max-width:640px){.mode-switch.three{grid-template-columns:minmax(0,1fr)}}
 .types{display:flex;flex-direction:column;gap:.55rem;padding-bottom:1rem;border-bottom:1px solid var(--line-2)}
 .types-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
 .types-head small{color:var(--muted);font-size:var(--t-xs)}
@@ -500,6 +498,15 @@ legend small{font-family:var(--body);font-weight:400;color:var(--muted);font-siz
 .kind-switch button svg{width:22px;height:22px}
 .kind-switch button:hover{border-color:var(--ink-2)}
 .kind-switch button[aria-checked="true"]{border-color:var(--brand);background:var(--accent-soft);color:var(--accent)}
+.op-list{gap:.6rem}
+.op-row{display:grid;grid-template-columns:6.5rem repeat(3,minmax(0,1fr)) 5.5rem 2.2rem;gap:.5rem;align-items:end}
+.op-f{display:flex;flex-direction:column;gap:.2rem;font-size:var(--t-xs);color:var(--ink-2);min-width:0}
+.wall-no{font-weight:600;font-size:var(--t-sm);color:var(--muted);align-self:center}.op-a{font-size:var(--t-xs);color:var(--muted);padding-bottom:.7rem;text-align:start}
+.op-x{padding:.4rem .5rem;font-size:1.1rem;line-height:1}
+.op-foot{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.op-total{margin-inline-start:auto;font-size:var(--t-sm);color:var(--ink-2)}
+.input.bad-in{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+@media (max-width:640px){.op-row{grid-template-columns:repeat(3,minmax(0,1fr))}.op-row select{grid-column:1/-1}.op-a{padding:0}}
 .calc-sheet{padding:1rem;display:flex;flex-direction:column;gap:1.1rem}
 .calc-sheet .rep-sec h3{font-size:var(--t-md)}
 .calc-sheet .boq-t{min-width:480px;font-size:var(--t-xs)}
@@ -570,7 +577,10 @@ const fmtF=(n,d=2)=>Number.isFinite(n)?n.toLocaleString('en-US',{minimumFraction
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>{try{return new Date(s).toLocaleDateString(L('ar-EG-u-nu-latn','en-GB'),{year:'numeric',month:'short',day:'numeric'})}catch(e){return s}};
-const numObj=o=>Object.fromEntries(Object.entries(o||{}).map(([k,x])=>[k,+x]));
+// numbers for every input; lists (e.g. door/window rows) are kept as they are
+const numObj=o=>Object.fromEntries(Object.entries(o||{}).map(([k,x])=>[k,Array.isArray(x)?x:+x]));
+// deep copy for inputs that hold lists, so types and saved items never share a row
+const clone=o=>JSON.parse(JSON.stringify(o));
 const sum=(a,f)=>a.reduce((t,x)=>t+(typeof f==='function'?f(x):x[f]),0);
 const M3=()=>L('م³','m³');
 
@@ -636,6 +646,35 @@ function toXY(type,i){
   else{i.nbx=Math.max(+i.nbB||2,+i.nbT||2);i.dbx=i.dB||16;i.nby=2;i.dby=i.dby||12}
   i.xy=2;return i;
 }
+// finishes on walls: count × length (lm 1) or one total of running metres (lm 2)
+const byRun=v=>+(v&&v.lm)===2;
+// running metres can already include the storey height (hi 2): then the figure is the wall area itself
+const runHasHeight=v=>byRun(v)&&+v.hi===2;
+// wall-by-wall rows {c (count), l (length), h (height)}; items saved before rows existed had one row in n/L/W
+const wallRows=v=>Array.isArray(v&&v.walls)?v.walls:[{c:+(v&&v.n)||1,l:+(v&&v.L)||0,h:+(v&&v.W)||0}];
+const wallRowArea=r=>Math.max(0,+r.c||0)*Math.max(0,+r.l||0)*Math.max(0,+r.h||0);
+const RUN_FIELDS=()=>[
+  F('TL',v=>runHasHeight(v)?['إجمالي الأمتار (شاملة ارتفاع الطابق)','Total, including storey height']:['إجمالي الأمتار الطولية','Total running metres'],
+    v=>runHasHeight(v)?U.m2:U.m,.1,1000000,.01,{when:byRun})];
+// wall height field, hidden when the running metres already include it
+const HEIGHT_FIELD=lab=>F('W',lab,U.m,.1,20,.05,{when:v=>byRun(v)&&!runHasHeight(v)});
+// openings: one typed total (opm 1) or worked out from doors and windows (opm 2)
+const byOpenings=v=>+(v&&v.opm)===2;
+// door/window rows {k:'d'|'w', n, w, h}; any number of sizes
+// (items saved before rows existed kept one door size and one window size in dn/dw/dh and wn/ww/wh)
+const opRows=v=>Array.isArray(v&&v.ops)?v.ops:v&&(v.dn!=null||v.wn!=null)?[{k:'d',n:v.dn,w:v.dw,h:v.dh},{k:'w',n:v.wn,w:v.ww,h:v.wh}]:[];
+const opRowArea=r=>Math.max(0,+r.n||0)*Math.max(0,+r.w||0)*Math.max(0,+r.h||0);
+const opArea=v=>byOpenings(v)?sum(opRows(v),opRowArea):(+v.op||0);
+const OPEN_GROUP=faces=>({t:['الفتحات','Openings'],open:true,f:[F('op',opLabel(faces),U.m2,0,100000,.01,{when:v=>!byOpenings(v)})]});
+const OPEN_DEF={opm:1};
+const WALL_ROWS=()=>[{c:2,l:5,h:3},{c:2,l:4,h:3}];
+const OPEN_ROWS=()=>[{k:'d',n:4,w:.9,h:2.1},{k:'w',n:4,w:1.2,h:1.2}];
+// openings on walls are one total for all the walls; with two faces it comes off each face
+const opLabel=(faces)=>()=>faces?['إجمالي مساحة الفتحات (تُخصم من كل وجه)','Total openings (deducted from each face)']:['إجمالي مساحة الفتحات','Total openings area'];
+// brick walls, mortar 1:6, per m² by wall thickness (half, one, one-and-a-half, two bricks)
+const BRICK={n:[75,150,225,300],cement:[10,15,25,35],sand:[.04,.08,.12,.16],
+  name:[['نصف طوبة','Half brick'],['طوبة','One brick'],['طوبة ونصف','One and a half bricks'],['طوبتين','Two bricks']]};
+const isBrick=v=>+(v&&v.bk)===2;
 const spreadN=(n,a,b)=>n<=1?[(a+b)/2]:Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
 // column bar positions in a unit square (u across b, w across h, both -1…1) with each bar's diameter
 function colLayout(v,iw,ih){
@@ -662,6 +701,8 @@ const byArea=v=>+(v&&v.by)===2;
 // plan size used for bar counts and drawings; an area-only slab is treated as the square with the same area
 const slabXY=v=>byArea(v)?{Lx:Math.sqrt(+v.A||0),Ly:Math.sqrt(+v.A||0)}:{Lx:+v.Lx,Ly:+v.Ly};
 const F=(k,label,unit,min,max,step,extra={})=>Object.assign({k,label,unit,min,max,step},extra);
+// a field's unit may depend on the inputs (e.g. m vs m² for running metres)
+const unitOf=(f,v)=>typeof f.unit==='function'?f.unit(v||{}):f.unit;
 const DIA=(k,label)=>({k,label,unit:U.mm,dia:true});
 const LAYERS=F('layers',['عدد الشبكات','Mesh layers'],U.none,1,2,1,{select:[[1,['شبكة سفلية فقط','Bottom mesh only']],[2,['سفلية وعلوية','Bottom and top']]]});
 const COUNT=F('n',['العدد','Count'],U.no,1,500,1);
@@ -813,20 +854,103 @@ const ELEMENTS={
       {t:['المبنى','Building'],kinds:[2],f:[
         F('gL',['طول المبنى','Building length'],U.m,1,500,.05,{when:v=>+v.by!==2}),F('gW',['عرض المبنى','Building width'],U.m,1,500,.05,{when:v=>+v.by!==2}),
         F('gA',['مساحة المبنى','Building area'],U.m2,1,100000,.01,{when:v=>+v.by===2}),
-        F('bv',['حجم المنشآت المدفونة تحت الأرض','Volume buried below ground'],['م³','m³'],0,100000,.001)]},
+        F('bv',['حجم المنشآت المدفونة تحت الأرض','Volume buried below ground'],['م³','m³'],0,100000,.001,{when:v=>+v.bvm!==2})]},
       {t:['خرسانة النظافة','Blinding concrete'],kinds:[1],f:[F('bt',['سماكة النظافة','Blinding thickness'],U.cm,0,20,1)]},
     ],
     def:{kind:1,n:12,dep:1.5,sw:1.25,fL:1.8,fW:1.6,fD:60,cb:30,ch:50,bL:4.5,bb:30,bh:60,bt:10},
-    def2:{kind:2,n:1,by:1,gL:20,gW:15,gA:300,bv:40},
+    def2:{kind:2,n:1,by:1,gL:20,gW:15,gA:300,bvm:2,bv:40},
     check(v){const e={};
       const buried=(v.fD+v.bt)/100;
       if(v.kind!==2&&buried>v.dep)e.dep=L('العمق أقل من سماكة القاعدة والنظافة. زد العمق.','The depth is less than the footing plus blinding. Increase it.');
-      if(v.kind===2&&v.bv>earthGeom(v).one)e.bv=L('حجم المدفون أكبر من حجم الحفر. راجع الحجم أو العمق.','The buried volume is more than the excavation. Check the volume or depth.');
+      if(v.kind===2&&v.bvm!==2&&v.bv>earthGeom(v).one)e.bv=L('حجم المدفون أكبر من حجم الحفر. راجع الحجم أو العمق.','The buried volume is more than the excavation. Check the volume or depth.');
       return e},
     dims:v=>earthGeom(v).dims,
     calc(v){const g=earthGeom(v);return{conc:0,bars:[],exc:g.exc,fill:g.fill,buried:g.buried,surplus:g.surplus}}
+  },
+  // ---------- finishes (shown under «حساب التشطيبات»): areas in m², openings deducted ----------
+  block:{
+    name:['المباني','Masonry'],prefix:['ط','W'],fin:true,opOnly:true,wLab:['الارتفاع','Height'],
+    hint:['المساحة الصافية = العدد × الطول × الارتفاع − الفتحات، أو إجمالي الأمتار الطولية × الارتفاع − الفتحات (إذا كانت الأمتار شاملة ارتفاع الطابق فهي المساحة مباشرة). الطوب بمونة 1:6 لكل م²: نصف طوبة 75 طوبة و10 كغ أسمنت و0.04 م³ رمل، طوبة 150 و15 و0.08، طوبة ونصف 225 و25 و0.12، طوبتين 300 و35 و0.16.',
+          'Net area = count × length × height − openings, or total running metres × height − openings (if the metres already include the storey height they are the area itself). Bricks in 1:6 mortar per m²: half brick 75 bricks, 10 kg cement, 0.04 m³ sand; one brick 150, 15, 0.08; one and a half 225, 25, 0.12; two bricks 300, 35, 0.16.'],
+    groups:[
+      {t:['الجدران','Walls'],walls:true,f:[...RUN_FIELDS(),HEIGHT_FIELD(['ارتفاع الجدار','Wall height'])]},
+      OPEN_GROUP(false),
+      {t:['الطوب (مونة 1:6)','Brick (1:6 mortar)'],f:[F('wt',['سمك الجدار','Wall thickness'],U.none,1,4,1,{select:BRICK.name.map((nm,i)=>[i+1,nm])})]},
+    ],
+    def:{lm:1,hi:1,walls:WALL_ROWS(),TL:40,W:3,op:0,opm:2,ops:OPEN_ROWS(),wt:2},
+    check(v){const e={};if(opArea(v)>finBase(v,1).gross)e[byOpenings(v)?'dn':'op']=L('الفتحات أكبر من مساحة الجدار.','The openings are larger than the wall.');return e},
+    calc(v){const r=finBase(v,1),k=Math.min(4,Math.max(1,Math.round(v.wt)))-1,kg=r.net*BRICK.cement[k];
+      return{conc:0,bars:[],fin:r,mat:[{key:'bricks',label:['عدد الطوب','Bricks'],v:Math.ceil(r.net*BRICK.n[k]),unit:['طوبة','pcs'],d:0},
+        {key:'cement',label:['الأسمنت (مونة 1:6)','Cement (1:6 mortar)'],v:kg,unit:['كغ','kg'],d:1},
+        {key:'bags',label:['الأسمنت بالشكارة (50 كغ)','Cement in 50 kg bags'],v:Math.ceil(kg/50),unit:['شكارة','bags'],d:0},
+        {key:'sand',label:['الرمل (مونة 1:6)','Sand (1:6 mortar)'],v:r.net*BRICK.sand[k],unit:['م³','m³'],d:3}]}}
+  },
+  plaster:{
+    name:['اللياسة','Plaster'],prefix:['ل','P'],fin:true,wLab:['الارتفاع','Height'],
+    hint:['المساحة = العدد × الطول × الارتفاع × عدد الأوجه − الفتحات على كل وجه. حجم المونة = المساحة × سماكة اللياسة.',
+          'Area = count × length × height × faces − openings on each face. Mortar volume = area × plaster thickness.'],
+    groups:[
+      {t:['الجدران','Walls'],walls:true,f:[...RUN_FIELDS(),HEIGHT_FIELD(['ارتفاع الجدار','Wall height']),
+        F('sd',['عدد الأوجه','Faces'],U.none,1,2,1,{select:[[1,['وجه واحد','One face']],[2,['وجهين','Both faces']]]})]},
+      OPEN_GROUP(true),
+      {t:['اللياسة','Plaster'],f:[F('th',['سماكة اللياسة','Plaster thickness'],U.cm,.5,5,.5)]},
+    ],
+    def:{lm:1,hi:1,walls:WALL_ROWS(),TL:40,W:3,sd:2,op:2,...OPEN_DEF,th:2},
+    check(v){const e={};if(opArea(v)>finBase(v,1).gross)e[byOpenings(v)?'dn':'op']=L('الفتحات أكبر من مساحة الجدار.','The openings are larger than the wall.');return e},
+    calc(v){const r=finBase(v,+v.sd||1);
+      return{conc:0,bars:[],fin:r,mat:[{key:'mortar',label:['حجم مونة اللياسة','Plaster mortar'],v:r.net*v.th/100,unit:['م³','m³'],d:3}]}}
+  },
+  tile:{
+    name:['البلاط','Tiling'],prefix:['ب','T'],fin:true,wLab:['العرض','Width'],
+    hint:['المساحة = العدد × الطول × العرض − المساحات المخصومة. عدد البلاط = المساحة ÷ مساحة البلاطة الواحدة (مقرّب لأعلى).',
+          'Area = count × length × width − deducted areas. Tiles = area ÷ one tile\'s area (rounded up).'],
+    groups:[
+      {t:['المساحة','Area'],f:[F('n',['عدد الغرف','Number of rooms'],U.no,1,1000,1),F('L',['الطول','Length'],U.m,.1,200,.05),F('W',['العرض','Width'],U.m,.1,200,.05),
+        F('op',['مساحة مخصومة لكل غرفة','Deducted area per room'],U.m2,0,500,.01)]},
+      {t:['البلاطة','Tile'],f:[F('ta',['طول البلاطة','Tile length'],U.cm,5,200,1),F('tb',['عرض البلاطة','Tile width'],U.cm,5,200,1)]},
+    ],
+    def:{n:5,L:4,W:4,op:0,ta:60,tb:60},
+    check(v){const e={};if(v.op>v.L*v.W)e.op=L('المساحة المخصومة أكبر من مساحة الغرفة.','The deducted area is larger than the room.');return e},
+    calc(v){const r=finBase(v,1,true);
+      return{conc:0,bars:[],fin:r,mat:[{key:'tiles',label:['عدد البلاط','Tiles'],v:Math.ceil(r.net/(v.ta*v.tb/1e4)),unit:['بلاطة','pcs'],d:0}]}}
+  },
+  paint:{
+    name:['الدهان','Painting'],prefix:['د','PT'],fin:true,wLab:['الارتفاع','Height'],
+    hint:['المساحة = العدد × الطول × الارتفاع × عدد الأوجه − الفتحات. كمية الدهان = المساحة × عدد الطبقات ÷ معدل التغطية.',
+          'Area = count × length × height × faces − openings. Paint = area × coats ÷ coverage.'],
+    groups:[
+      {t:['الأسطح','Surfaces'],walls:true,f:[...RUN_FIELDS(),HEIGHT_FIELD(['الارتفاع','Height']),
+        F('sd',['عدد الأوجه','Faces'],U.none,1,2,1,{select:[[1,['وجه واحد','One face']],[2,['وجهين','Both faces']]]})]},
+      OPEN_GROUP(true),
+      {t:['الدهان','Paint'],f:[F('co',['عدد الطبقات','Coats'],U.no,1,5,1),F('cv',['معدل التغطية','Coverage'],['م²/لتر','m²/L'],1,30,.5)]},
+    ],
+    def:{lm:1,hi:1,walls:WALL_ROWS(),TL:40,W:3,sd:2,op:2,...OPEN_DEF,co:2,cv:10},
+    check(v){const e={};if(opArea(v)>finBase(v,1).gross)e[byOpenings(v)?'dn':'op']=L('الفتحات أكبر من مساحة الجدار.','The openings are larger than the wall.');return e},
+    calc(v){const r=finBase(v,+v.sd||1);
+      return{conc:0,bars:[],fin:r,mat:[{key:'paint',label:['كمية الدهان','Paint'],v:r.net*v.co/v.cv,unit:['لتر','L'],d:1}]}}
   }
 };
+// one finishes row: area = count × length × width/height × faces, openings deducted on every face
+// (with running metres: one line of the total length, openings given as one total)
+// perUnit: the deduction is given for each room (tiles); otherwise it is one total for all the walls
+// wall finishes (not tiles) entered wall by wall become one line: total length × area-weighted height
+function finBase(v,sd,perUnit){
+  const op=opArea(v);
+  if(!perUnit&&!byRun(v)){
+    const rows=wallRows(v),area=sum(rows,wallRowArea),len=sum(rows,r=>Math.max(0,+r.c||0)*Math.max(0,+r.l||0)),wc=sum(rows,r=>Math.max(0,+r.c||0));
+    const gross=area*sd,ded=Math.min(gross,op*sd);
+    return{n:1,L:len,W:len?area/len:0,sd,gross,ded,net:gross-ded,note:L(`${fmt(wc,0)} ${wc===1?'جدار':'جدران'}`,`${fmt(wc,0)} wall${wc===1?'':'s'}`)};
+  }
+  const run=byRun(v),n=run?1:+v.n||0,Lx=run?+v.TL||0:+v.L||0,Wx=runHasHeight(v)?1:+v.W||0;
+  const gross=n*Lx*Wx*sd,ded=Math.min(gross,(perUnit?n:1)*op*sd);
+  return{n,L:Lx,W:Wx,sd,gross,ded,net:gross-ded};
+}
+const FIN_TABS=['block','plaster','tile','paint'];
+const FIN_ICONS={
+  block:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14"/><path d="M2 12h20M9 5v7M15 12v7"/></svg>',
+  plaster:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14h12l4-4H8z"/><path d="M11 14v6"/></svg>',
+  tile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>',
+  paint:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="15" height="6" rx="1"/><path d="M18 6h3v5h-9v3"/><rect x="10" y="14" width="4" height="7" rx="1"/></svg>'};
 // pit or trench geometry: bottom = structure + 10 cm blinding projection each side + working space;
 // sloping sides widen the top by slope × depth each side. A whole-building dig uses the footprint
 // (length × width, or the square of the same area) plus working space; its buried volume is typed in.
@@ -851,10 +975,26 @@ function earthGeom(v){
 // construction order, used by the tabs and the dashboard charts
 const EL_ORDER=['footing','tie','column','grade','slab'];
 // calculator tabs: excavation and backfill are two views of the same earthwork list
-const TABS=[{t:'earth',view:'exc'},{t:'footing'},{t:'tie'},{t:'earth',view:'fill'},{t:'column'},{t:'grade'},{t:'slab'}];
+const TABS=[{t:'earth',view:'exc'},{t:'footing'},{t:'tie'},{t:'column'},{t:'earth',view:'fill'},{t:'grade'},{t:'slab'}];
 const EARTH_VIEW={exc:{name:['الحفر','Excavation'],keys:['n','dep','fL','fW','bt','gL','gW','gA']},
   fill:{name:['الردم','Backfill'],keys:['n','fD','cb','ch','bv','sw']}};
 const earthView=()=>S.earthView==='fill'?'fill':'exc';
+// buried volume under a whole building, taken from what is entered in the other tabs:
+// footings (reinforced + blinding), tie beams, and the necks of columns that start in a footing
+// (neck = excavation depth − average footing thickness − average blinding)
+function linkedBuried(dep,noTie=S.noTie){
+  const safe=x=>Number.isFinite(x)?x:0,tot=(t)=>{try{return computeMulti(t,S.vals[t].list)}catch(e){return{conc:0,plain:0}}};
+  const F_=tot('footing'),T_=tot('tie');
+  const fl=S.vals.footing.list.map(t=>numObj(t.inputs)),wn=sum(fl,'n')||1;
+  const avgD=sum(fl,f=>f.n*f.D)/wn/100,avgBt=sum(fl,f=>f.n*f.bt)/wn/100;
+  const neckH=Math.max(0,dep-avgD-avgBt);
+  const neck=sum(S.vals.column.list.map(t=>numObj(t.inputs)).filter(c=>embLen(c)>0),c=>c.n*(c.b/100)*(c.h/100))*neckH;
+  // a project without tie beams adds nothing for them, whatever the Tie beams tab holds
+  const r={foot:safe(F_.conc),plain:safe(F_.plain),tie:noTie?0:safe(T_.conc),neck:safe(neck),neckH,noTie:!!noTie};
+  r.total=r.foot+r.plain+r.tie+r.neck;return r;
+}
+// keep linked buried volumes current before any earthwork result is worked out
+function syncLinkedBuried(){for(const t of S.vals.earth.list){const i=t.inputs;if(+i.kind===2&&+i.bvm===2)i.bv=+linkedBuried(+i.dep||0).total.toFixed(3)}}
 const KIND_PREFIX=[null,['ق','F'],['قم','CF']];
 const kindOf=v=>+(v&&v.kind)===2?2:1;
 const groupOn=(g,v)=>(!g.kinds||g.kinds.includes(kindOf(v)))&&(!g.on||g.on(v||{}));
@@ -901,7 +1041,7 @@ const RATIO={column:[120,220],tie:[90,160],grade:[90,160],slab:[60,110],footing:
 
 // which calculation a field belongs to: dimensions feed both, reinforcement and cover feed steel only
 function fieldUse(type,gi,f){
-  if(ELEMENTS[type].earth)return'both';
+  if(ELEMENTS[type].earth||ELEMENTS[type].fin)return'both';
   if(f.k==='c')return'steel';
   if(isFoot(type)&&f.k==='bt')return'conc';
   return gi===0?'both':'steel';
@@ -931,8 +1071,8 @@ function validate(type,v,mode,part){
     if(f.select)continue;
     if(raw===''||raw==null||isNaN(+raw)){errs[f.k]=L('أدخل رقمًا.','Enter a number.');continue}
     const n=+raw;
-    if(n<f.min)errs[f.k]=L(`القيمة الدنيا ${fmt(f.min)} ${tr(f.unit)}.`,`Minimum is ${fmt(f.min)} ${tr(f.unit)}.`);
-    else if(n>f.max)errs[f.k]=L(`القيمة القصوى ${fmt(f.max)} ${tr(f.unit)}.`,`Maximum is ${fmt(f.max)} ${tr(f.unit)}.`);
+    if(n<f.min)errs[f.k]=L(`القيمة الدنيا ${fmt(f.min)} ${tr(unitOf(f,v))}.`,`Minimum is ${fmt(f.min)} ${tr(unitOf(f,v))}.`);
+    else if(n>f.max)errs[f.k]=L(`القيمة القصوى ${fmt(f.max)} ${tr(unitOf(f,v))}.`,`Maximum is ${fmt(f.max)} ${tr(unitOf(f,v))}.`);
     else if(f.step===1&&!Number.isInteger(n))errs[f.k]=L('أدخل عددًا صحيحًا.','Enter a whole number.');
   }
   const all={...el.check(numObj(v)),...errs};
@@ -946,7 +1086,8 @@ function validate(type,v,mode,part){
 function compute(type,inputs){
   const r=ELEMENTS[type].calc(numObj(inputs));
   for(const b of r.bars){b.total=b.count*b.len;b.kg=b.total*wpm(b.d)}
-  return{conc:r.conc,plain:r.plain||0,steel:sum(r.bars,'kg'),bars:r.bars,exc:r.exc||0,fill:r.fill||0,buried:r.buried||0,surplus:r.surplus||0};
+  return{conc:r.conc,plain:r.plain||0,steel:sum(r.bars,'kg'),bars:r.bars,exc:r.exc||0,fill:r.fill||0,buried:r.buried||0,surplus:r.surplus||0,
+    fin:r.fin||null,area:r.fin?r.fin.net:0,mat:r.mat||[]};
 }
 // all types of one element
 function computeMulti(type,types){
@@ -956,9 +1097,16 @@ function computeMulti(type,types){
   for(const p of parts)for(const b of p.bars){const o=by[b.d]||(by[b.d]={d:b.d,len:0,kg:0});o.len+=b.total;o.kg+=b.kg}
   const dias=Object.values(by).sort((a,b)=>a.d-b.d).map(o=>({...o,bars12:Math.ceil(o.len/BAR_LEN)}));
   return{parts,conc,plain,steel,ratio:conc?steel/conc:0,dias,
-    exc:sum(parts,'exc'),fill:sum(parts,'fill'),buried:sum(parts,'buried'),surplus:sum(parts,'surplus')};
+    exc:sum(parts,'exc'),fill:sum(parts,'fill'),buried:sum(parts,'buried'),surplus:sum(parts,'surplus'),
+    area:sum(parts,'area'),mat:sumMat(parts)};
 }
-const stripR=M=>({conc:M.conc,plain:M.plain,steel:M.steel,ratio:M.ratio,dias:M.dias,exc:M.exc||0,fill:M.fill||0,surplus:M.surplus||0});
+// finishes materials (blocks, tiles, litres…) added up across types by key
+function sumMat(parts){
+  const by={};
+  for(const p of parts)for(const m of p.mat||[]){const o=by[m.key]||(by[m.key]={...m,v:0});o.v+=m.v}
+  return Object.values(by);
+}
+const stripR=M=>({conc:M.conc,plain:M.plain,steel:M.steel,ratio:M.ratio,dias:M.dias,exc:M.exc||0,fill:M.fill||0,surplus:M.surplus||0,area:M.area||0});
 
 /* ================== auth (accounts kept in this browser only) ================== */
 async function hash(pw,salt){
@@ -970,10 +1118,11 @@ const users=()=>store.get('cc.users',{});
 const dataKey=e=>'cc.data.'+e;
 
 /* ================== app state ================== */
-const freshEl=type=>{const id=uid();return{list:[{id,name:tr(ELEMENTS[type].prefix)+'1',inputs:{...ELEMENTS[type].def}}],active:id}};
+const freshEl=type=>{const id=uid();return{list:[{id,name:tr(ELEMENTS[type].prefix)+'1',inputs:clone(ELEMENTS[type].def)}],active:id}};
 const S={
   view:'auth', authTab:'login', user:null, data:{projects:[]},
-  type:'column', mode:'conc', repMode:'conc', vals:{}, open:{}, modal:null
+  type:'column', mode:'conc', repMode:'conc', vals:{}, open:{}, modal:null,
+  noTie:!!store.get('cc.notie',false)   // project without tie beams (set in the Tie beams tab)
 };
 for(const k in ELEMENTS)S.vals[k]=freshEl(k);
 const E=()=>S.vals[S.type];
@@ -990,7 +1139,7 @@ function normalize(data){
       if(!Array.isArray(it.types))it.types=[{name:ELEMENTS[it.type].prefix[0]+'1',inputs:it.inputs||{}}];
       delete it.inputs;delete it.waste;
       // convert before filling defaults, otherwise the default xy:2 would hide the old bar counts
-      it.types.forEach(t=>t.inputs={...ELEMENTS[it.type].def,...toXY(it.type,{...(t.inputs||{})})});
+      it.types.forEach(t=>t.inputs=clone({...ELEMENTS[it.type].def,...toXY(it.type,{...(t.inputs||{})})}));
       it.r=stripR(computeMulti(it.type,it.types));
     }
   }
@@ -1241,6 +1390,10 @@ function earthRows(M){
     fill.push({...base,gross:p.exc,ded:p.buried,net:p.fill});}
   return{exc,fill};
 }
+// finishes rows for the table: one per type, faces noted in the description when more than one
+function finRows(M){
+  return M.parts.map(p=>({label:p.name,...p.fin}));
+}
 function drawEarth(v){
   v=numObj(v);
   const W=380,Hh=270,g=earthGeom(v),d=v.dep,trench=v.kind===2;
@@ -1444,16 +1597,20 @@ const dimsText=(type,v)=>{v=numObj(v);const m=x=>fmtF(x,2);
 
 /* ================== shared table builders ================== */
 const f2=n=>fmtF(n,2), f3=n=>fmtF(n,3);
-// in construction order: dig, footings, tie beams, backfill, columns, beams, slabs
+// in construction order: dig, footings, tie beams, columns, backfill, beams, slabs
 const SECTIONS=[
   {key:'exc',    title:['بالمتر المكعب أعمال الحفر','Excavation, per m³'],short:['أعمال الحفر','Excavation'],earth:true},
   {key:'plain',  title:['بالمتر المكعب خرسانة عادية لزوم القواعد','Plain concrete for footings (blinding), per m³'],short:['خرسانة عادية لزوم القواعد','Plain concrete — footings']},
   {key:'footing',title:['بالمتر المكعب خرسانة مسلحة لزوم القواعد','Reinforced concrete for footings, per m³'],short:['خرسانة مسلحة لزوم القواعد','Reinforced concrete — footings']},
   {key:'tie',    title:['بالمتر المكعب خرسانة مسلحة لزوم السملات','Reinforced concrete for tie beams, per m³'],short:['خرسانة مسلحة لزوم السملات','Reinforced concrete — tie beams']},
-  {key:'fill',   title:['بالمتر المكعب أعمال الردم','Backfill, per m³'],short:['أعمال الردم','Backfill'],earth:true},
   {key:'column', title:['بالمتر المكعب خرسانة مسلحة لزوم الأعمدة','Reinforced concrete for columns, per m³'],short:['خرسانة مسلحة لزوم الأعمدة','Reinforced concrete — columns']},
+  {key:'fill',   title:['بالمتر المكعب أعمال الردم','Backfill, per m³'],short:['أعمال الردم','Backfill'],earth:true},
   {key:'grade',  title:['بالمتر المكعب خرسانة مسلحة لزوم البيم','Reinforced concrete for beams, per m³'],short:['خرسانة مسلحة لزوم البيم','Reinforced concrete — beams']},
   {key:'slab',   title:['بالمتر المكعب خرسانة مسلحة لزوم الأسقف','Reinforced concrete for slabs, per m³'],short:['خرسانة مسلحة لزوم الأسقف','Reinforced concrete — slabs']},
+  {key:'block',  title:['بالمتر المربع أعمال المباني (البلوك)','Blockwork, per m²'],short:['المباني','Blockwork'],fin:true},
+  {key:'plaster',title:['بالمتر المربع أعمال اللياسة','Plaster, per m²'],short:['اللياسة','Plaster'],fin:true},
+  {key:'tile',   title:['بالمتر المربع أعمال البلاط','Tiling, per m²'],short:['البلاط','Tiling'],fin:true},
+  {key:'paint',  title:['بالمتر المربع أعمال الدهان','Painting, per m²'],short:['الدهان','Painting'],fin:true},
 ];
 const secTitle=k=>tr(SECTIONS.find(s=>s.key===k).title);
 const ITEM=()=>L('البند : ','Item: ');
@@ -1478,6 +1635,20 @@ function concTableHTML(title,rows){
     <tfoot><tr><td class="lbl" colspan="6">${H.itemTot()}</td><td>${sum(rows,'ded')?f3(sum(rows,'ded')):''}</td><td>${f3(sum(rows,'gross'))}</td><td>${f3(sum(rows,'net'))}</td></tr></tfoot>
   </table></div></section>`;
 }
+// finishes table: m², two dimensions, number of faces, openings in the deduct column
+function finTableHTML(title,rows,wLab){
+  return`<section class="rep-sec"><h3>${ITEM()}${title}</h3>
+  <div class="tbl-wrap"><table class="boq-t">
+    <thead><tr><th rowspan="2" style="width:24%">${H.desc()}</th><th rowspan="2">${H.unit()}</th><th rowspan="2">${H.count()}</th><th colspan="2">${H.dims()}</th><th rowspan="2">${L('عدد الأوجه','Faces')}</th><th colspan="3">${H.qty()}</th></tr>
+      <tr><th>${H.len()}</th><th>${tr(wLab)}</th><th>${H.ded()}</th><th>${H.add()}</th><th>${H.tot()}</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td class="desc">${esc(r.note?`${r.label} (${r.note})`:r.label)}</td><td class="desc">${L('م²','m²')}</td><td>${fmt(r.n,0)}</td>
+      <td>${f2(r.L)}</td><td>${f2(r.W)}</td><td>${fmt(r.sd,0)}</td><td>${r.ded?f2(r.ded):''}</td><td>${f2(r.gross)}</td><td class="tot">${f2(r.net)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="lbl" colspan="6">${H.itemTot()}</td><td>${sum(rows,'ded')?f2(sum(rows,'ded')):''}</td><td>${f2(sum(rows,'gross'))}</td><td>${f2(sum(rows,'net'))}</td></tr></tfoot>
+  </table></div></section>`;
+}
+// materials under a finishes table (blocks, tiles, litres, mortar)
+const matHTML=mat=>mat.length?`<div class="tbl-wrap"><table class="boq-t"><thead><tr><th style="width:55%">${L('المواد','Materials')}</th><th>${H.unit()}</th><th>${L('الكمية','Quantity')}</th></tr></thead>
+  <tbody>${mat.map(m=>`<tr><td class="desc">${tr(m.label)}</td><td class="desc">${tr(m.unit)}</td><td class="tot">${fmtF(m.v,m.d)}</td></tr>`).join('')}</tbody></table></div>`:'';
 // steel rows → two tables: main bars, then stirrups on their own; the bar kind goes into the description
 const steelDesc=b=>b.st||!b.role?b.label:`${b.label} — ${b.role}`;
 // bars of one type with the same diameter and length read as one line (e.g. X and Y bars of a column)
@@ -1912,9 +2083,13 @@ const modeSwitch=(act,conc,labels)=>`<div class="mode-switch" role="tablist">
 
 function viewCalc(){
   const el=ELEMENTS[S.type],e=E(),a=cur(),v=a.inputs,pre=tr(el.prefix);
+  // masonry wall by wall takes openings only as a door/window list (running metres may still use one total)
+  if(el.opOnly&&!byRun(v)&&!byOpenings(v)){v.opm=2;if(!Array.isArray(v.ops))v.ops=opRows(v)}
   const conc=S.mode==='conc',k2=isFoot(S.type)&&kindOf(v)===2;
   const fillIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 8h5l3 10h4l3-10h5"/><path d="M9 12h6M10 15h4"/><path d="M12 2v5M10 5l2 2 2-2"/></svg>';
-  const tabs=TABS.map(({t,view})=>{const on=t===S.type&&(!view||view===earthView());
+  const tabs=S.mode==='fin'
+    ?FIN_TABS.map(t=>`<button role="tab" id="el-${t}" aria-selected="${t===S.type}" data-act="type" data-v="${t}">${FIN_ICONS[t]}${elName(t)}</button>`).join('')
+    :TABS.map(({t,view})=>{const on=t===S.type&&(!view||view===earthView());
     return`<button role="tab" id="el-${view||t}" aria-selected="${on}" data-act="type" data-v="${t}" ${view?`data-view="${view}"`:''}>${view==='fill'?fillIcon:ICONS[t]}${view?tr(EARTH_VIEW[view].name):elName(t)}</button>`}).join('');
   // each footing type picks its own kind, so isolated and combined footings can sit in one list
   const kinds=isFoot(S.type)?`<div class="kind-switch" role="radiogroup" aria-label="${L('نوع القاعدة','Footing kind')} ${esc(a.name)}">
@@ -1926,7 +2101,7 @@ function viewCalc(){
     if(f.dia)ctl=`<select class="input num" id="f-${f.k}" data-k="${f.k}">${DIAS.map(d=>`<option value="${d}" ${+v[f.k]===d?'selected':''}>Ø${d} · ${fmtF(wpm(d),3)} kg/m</option>`).join('')}</select>`;
     else if(f.select)ctl=`<select class="input" id="f-${f.k}" data-k="${f.k}">${f.select.map(([x,l])=>`<option value="${x}" ${+v[f.k]===x?'selected':''}>${tr(l)}</option>`).join('')}</select>`;
     else ctl=`<input class="input num" id="f-${f.k}" data-k="${f.k}" inputmode="decimal" value="${esc(v[f.k])}" aria-describedby="m-${f.k}">`;
-    return`<div class="field" data-f="${f.k}"><label for="f-${f.k}"><span>${tr(typeof f.label==='function'?f.label(v):f.label)}</span><span class="unit">${tr(f.unit)}</span></label>${ctl}<div class="msg" id="m-${f.k}"></div></div>`};
+    return`<div class="field" data-f="${f.k}"><label for="f-${f.k}"><span>${tr(typeof f.label==='function'?f.label(v):f.label)}</span><span class="unit">${tr(unitOf(f,v))}</span></label>${ctl}<div class="msg" id="m-${f.k}"></div></div>`};
   const part=concPart(),vis=visibleKeys(S.type,S.mode,v,partOf());
   const partSwitch=part?`<div class="kind-switch" role="radiogroup" aria-label="${L('نوع الخرسانة','Concrete type')}">
       <button type="button" role="radio" data-act="concpart" data-v="rc" aria-checked="${part==='rc'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="10"/><path d="M5 14h14M5 10h14" stroke-dasharray="2 2"/></svg>${L('خرسانة مسلحة','Reinforced concrete')}</button>
@@ -1950,20 +2125,45 @@ function viewCalc(){
       <button type="button" role="radio" data-act="embm" data-v="1" aria-checked="${!ff}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16M8 4v16M16 4v16"/><path d="M12 8v8M10 14l2 2 2-2"/></svg>${L('طول داخل القاعدة يدوي','Depth typed in')}</button>
       <button type="button" role="radio" data-act="embm" data-v="2" aria-checked="${ff}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="13" width="18" height="7"/><rect x="9" y="3" width="6" height="10"/><path d="M5 18h14" stroke-dasharray="2 2"/></svg>${L('من أبعاد القاعدة وتسليحها','From the footing & its mesh')}</button>
     </div>`:'';
-  const earth=!!el.earth,ek=kindOf(v);
+  const earth=!!el.earth,ek=kindOf(v),fin=!!el.fin;
   const earthSwitch=earth?`<div class="kind-switch" role="radiogroup" aria-label="${L('نوع الحفر','Excavation type')} ${esc(a.name)}">
       <button type="button" role="radio" data-act="earthkind" data-v="1" aria-checked="${ek===1}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 6h4l2 14h8l2-14h4"/><rect x="9" y="15" width="6" height="4"/></svg>${L('حفر قاعدة منفردة','Single footing pit')}</button>
       <button type="button" role="radio" data-act="earthkind" data-v="2" aria-checked="${ek===2}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 7h3l1 12h14l1-12h3"/><rect x="7" y="13" width="3" height="6"/><rect x="14" y="13" width="3" height="6"/></svg>${L('حفر مساحة المبنى كاملة','Whole building footprint')}</button>
     </div>`+(ek===2&&earthView()==='exc'?`<div class="kind-switch" role="radiogroup" aria-label="${L('أبعاد المبنى','Building size')}">
       <button type="button" role="radio" data-act="earthby" data-v="1" aria-checked="${+v.by!==2}">${L('بالطول والعرض','Length × width')}</button>
       <button type="button" role="radio" data-act="earthby" data-v="2" aria-checked="${+v.by===2}">${L('بالمساحة الكلية','Total area')}</button>
+    </div>`:'')+(ek===2&&earthView()==='fill'?`<div class="kind-switch" role="radiogroup" aria-label="${L('حجم المنشآت المدفونة','Buried volume')}">
+      <button type="button" role="radio" data-act="earthbv" data-v="2" aria-checked="${+v.bvm===2}">${L('مربوط بالأساسات والأعمدة','Linked to footings & columns')}</button>
+      <button type="button" role="radio" data-act="earthbv" data-v="1" aria-checked="${+v.bvm!==2}">${L('إدخال يدوي','Typed in')}</button>
     </div>`:''):'';
-  const form=types+earthSwitch+partSwitch+kinds+bySwitch+embSwitch+el.groups.filter(g=>groupOn(g,v)).map(g=>{const fs=g.f.filter(f=>vis.has(f.k));
-      return fs.length?`<fieldset><legend>${tr(g.t)}</legend><div class="grid-f">${fs.map(field).join('')}</div></fieldset>`:''}).join('')
-    +(conc&&!earth?'':`<p class="hint">${tr(k2?el.hint2:el.hint)}${ar?L(' عند الإدخال بالمساحة يُحسب الحديد لمربع بنفس المساحة، فهو تقريبي. للدقة استخدم الطول والعرض.',' With area entry the steel is worked out for a square of the same area, so it is approximate. Use length × width for an exact figure.'):''}</p>`);
-  return shell(`<div class="page-head"><div><span class="eyebrow">${earth?L('الأعمال الترابية','Earthworks'):conc?(part==='plain'?L('حساب الخرسانة العادية','Plain concrete calculation'):part==='rc'?L('حساب الخرسانة المسلحة','Reinforced concrete calculation'):L('حساب الخرسانة','Concrete calculation')):L('حساب حديد التسليح','Rebar calculation')}</span><h1>${earth?tr(EARTH_VIEW[earthView()].name):elName(S.type)}</h1></div>
+  const tieSwitch=S.type==='tie'?`<div class="kind-switch" role="radiogroup" aria-label="${L('السملات في المشروع','Tie beams in the project')}">
+      <button type="button" role="radio" data-act="hastie" data-v="1" aria-checked="${!S.noTie}">${ICONS.tie}${L('يوجد سملات','Has tie beams')}</button>
+      <button type="button" role="radio" data-act="hastie" data-v="2" aria-checked="${!!S.noTie}">${L('لا يوجد سملات','No tie beams')}</button>
+    </div>`:'';
+  // finishes: brick or block (masonry), and count × length or total running metres (wall finishes)
+  const finSwitch=fin&&S.type!=='tile'?`<div class="kind-switch" role="radiogroup" aria-label="${L('طريقة إدخال الأطوال','Length input')} ${esc(a.name)}">
+      <button type="button" role="radio" data-act="finlm" data-v="1" aria-checked="${!byRun(v)}">${L('حائط حائط','Wall by wall')}</button>
+      <button type="button" role="radio" data-act="finlm" data-v="2" aria-checked="${byRun(v)}">${L('إجمالي الأمتار الطولية','Total running metres')}</button>
+    </div>`+(byRun(v)?`<div class="kind-switch" role="radiogroup" aria-label="${L('ارتفاع الطابق','Storey height')} ${esc(a.name)}">
+      <button type="button" role="radio" data-act="finhi" data-v="1" aria-checked="${!runHasHeight(v)}">${L('غير شاملة ارتفاع الطابق','Without storey height')}</button>
+      <button type="button" role="radio" data-act="finhi" data-v="2" aria-checked="${runHasHeight(v)}">${L('شاملة ارتفاع الطابق','Including storey height')}</button>
+    </div>`:'')+(el.opOnly&&!byRun(v)?'':`<div class="kind-switch" role="radiogroup" aria-label="${L('طريقة إدخال الفتحات','Openings input')} ${esc(a.name)}">
+      <button type="button" role="radio" data-act="finop" data-v="1" aria-checked="${!byOpenings(v)}">${L('إجمالي مساحة الفتحات','Total openings area')}</button>
+      <button type="button" role="radio" data-act="finop" data-v="2" aria-checked="${byOpenings(v)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="7" height="16"/><rect x="13" y="6" width="8" height="7"/><path d="M17 6v7M13 9.5h8"/></svg>${L('الأبواب والشبابيك','Doors & windows')}</button>
+    </div>`):'';
+  const form=S.type==='tie'&&S.noTie
+    ?tieSwitch+`<p class="hint">${L('المشروع بدون سملات: لا تُحسب لها كميات، ولا يُخصم لها شيء من ردم المبنى. اختر «يوجد سملات» لإدخالها.','This project has no tie beams: nothing is calculated for them and nothing is deducted for them from the building backfill. Choose "Has tie beams" to enter them.')}</p>`
+    :tieSwitch+types+finSwitch+earthSwitch+partSwitch+kinds+bySwitch+embSwitch+el.groups.filter(g=>groupOn(g,v)).map(g=>{const fs=g.f.filter(f=>vis.has(f.k));
+      // the wall list and the door/window list sit in place of their groups
+      return(g.walls&&!byRun(v)?wallEditor(v):'')+(g.open&&byOpenings(v)?opEditor(v):'')+(fs.length?`<fieldset>${g.walls&&!byRun(v)?'':`<legend>${tr(g.t)}</legend>`}<div class="grid-f">${fs.map(field).join('')}</div></fieldset>`:'')}).join('')
+    +(conc&&!earth&&!fin?'':`<p class="hint">${tr(k2?el.hint2:el.hint)}${ar?L(' عند الإدخال بالمساحة يُحسب الحديد لمربع بنفس المساحة، فهو تقريبي. للدقة استخدم الطول والعرض.',' With area entry the steel is worked out for a square of the same area, so it is approximate. Use length × width for an exact figure.'):''}</p>`);
+  return shell(`<div class="page-head"><div><span class="eyebrow">${fin?L('حساب التشطيبات','Finishes'):earth?L('الأعمال الترابية','Earthworks'):conc?(part==='plain'?L('حساب الخرسانة العادية','Plain concrete calculation'):part==='rc'?L('حساب الخرسانة المسلحة','Reinforced concrete calculation'):L('حساب الخرسانة','Concrete calculation')):L('حساب حديد التسليح','Rebar calculation')}</span><h1>${earth?tr(EARTH_VIEW[earthView()].name):elName(S.type)}</h1></div>
       <div class="actions"><button class="btn ghost" data-act="reset">${L('مسح الأنواع والبدء من جديد','Clear types and start over')}</button></div></div>
-    ${earth?'':modeSwitch('mode',conc,[L('حساب الخرسانة','Concrete'),L('م³ · الأبعاد فقط','m³ · dimensions only'),L('حساب الحديد','Rebar'),L('كغ · طن · أسياخ 12 م','kg · tonnes · 12 m bars')])}
+    <div class="mode-switch three" role="tablist" aria-label="${L('نوع الحساب','Calculation')}">
+      <button role="tab" id="mode-conc" aria-selected="${S.mode==='conc'}" data-act="mode" data-v="conc">${I.cube}<span><b>${L('حساب الخرسانة','Concrete')}</b><small>${L('م³ · الأبعاد فقط','m³ · dimensions only')}</small></span></button>
+      <button role="tab" id="mode-steel" aria-selected="${S.mode==='steel'}" data-act="mode" data-v="steel">${I.bars}<span><b>${L('حساب الحديد','Rebar')}</b><small>${L('كغ · طن · أسياخ 12 م','kg · tonnes · 12 m bars')}</small></span></button>
+      <button role="tab" id="mode-fin" aria-selected="${S.mode==='fin'}" data-act="mode" data-v="fin">${FIN_ICONS.paint}<span><b>${L('حساب التشطيبات','Finishes')}</b><small>${L('م² · بلوك · لياسة · بلاط · دهان','m² · blocks · plaster · tiles · paint')}</small></span></button>
+    </div>
     <div class="el-tabs" role="tablist" aria-label="${L('نوع العنصر','Element type')}">${tabs}</div>
     <div class="calc">
       <form class="sheet" id="calc-form" novalidate>${form}</form>
@@ -1971,6 +2171,39 @@ function viewCalc(){
     </div>`);
 }
 
+// wall rows: count, length, height; add one row per different wall
+function wallEditor(v){
+  const rows=wallRows(v);
+  return`<fieldset class="op-list wall-list"><legend>${L('الجدران','Walls')}</legend>
+    ${rows.map((r,i)=>`<div class="op-row">
+      <span class="wall-no num">${L('جدار','Wall')} ${i+1}</span>
+      <label class="op-f"><span>${L('العدد','Count')}</span><input class="input num" id="wl-c-${i}" data-wall="${i}:c" inputmode="decimal" value="${esc(r.c)}"></label>
+      <label class="op-f"><span>${L('الطول م','Length m')}</span><input class="input num" id="wl-l-${i}" data-wall="${i}:l" inputmode="decimal" value="${esc(r.l)}"></label>
+      <label class="op-f"><span>${L('الارتفاع م','Height m')}</span><input class="input num" id="wl-h-${i}" data-wall="${i}:h" inputmode="decimal" value="${esc(r.h)}"></label>
+      <span class="op-a num" id="wl-a-${i}">${fmtF(wallRowArea(r),2)} m²</span>
+      <button type="button" class="btn ghost danger op-x" data-act="walldel" data-v="${i}" aria-label="${L('حذف','Remove')}">×</button>
+    </div>`).join('')||`<p class="muted" style="font-size:var(--t-sm)">${L('لا توجد جدران. أضف جدارًا.','No walls. Add a wall.')}</p>`}
+    <div class="op-foot"><button type="button" class="btn" data-act="walladd">${L('+ إضافة جدار','+ Add wall')}</button>
+      <span class="op-total">${L('إجمالي مساحة الجدران','Total wall area')}: <b class="num" id="wl-total">${fmtF(sum(rows,wallRowArea),2)} m²</b></span></div>
+  </fieldset>`;
+}
+// door & window rows: type, count, width, height; add/remove any number of sizes
+function opEditor(v){
+  const rows=opRows(v);
+  return`<fieldset class="op-list"><legend>${L('الأبواب والشبابيك','Doors & windows')}</legend>
+    ${rows.map((r,i)=>`<div class="op-row">
+      <select class="input" id="op-k-${i}" data-op="${i}:k" aria-label="${L('النوع','Type')}"><option value="d" ${r.k!=='w'?'selected':''}>${L('باب','Door')}</option><option value="w" ${r.k==='w'?'selected':''}>${L('شباك','Window')}</option></select>
+      <label class="op-f"><span>${L('العدد','Count')}</span><input class="input num" id="op-n-${i}" data-op="${i}:n" inputmode="decimal" value="${esc(r.n)}"></label>
+      <label class="op-f"><span>${L('العرض م','Width m')}</span><input class="input num" id="op-w-${i}" data-op="${i}:w" inputmode="decimal" value="${esc(r.w)}"></label>
+      <label class="op-f"><span>${L('الارتفاع م','Height m')}</span><input class="input num" id="op-h-${i}" data-op="${i}:h" inputmode="decimal" value="${esc(r.h)}"></label>
+      <span class="op-a num" id="op-a-${i}">${fmtF(opRowArea(r),2)} m²</span>
+      <button type="button" class="btn ghost danger op-x" data-act="opdel" data-v="${i}" aria-label="${L('حذف','Remove')}">×</button>
+    </div>`).join('')||`<p class="muted" style="font-size:var(--t-sm)">${L('لا توجد فتحات. أضف بابًا أو شباكًا.','No openings. Add a door or a window.')}</p>`}
+    <div class="op-foot"><button type="button" class="btn" data-act="opadd" data-v="d">${L('+ إضافة باب','+ Add door')}</button>
+      <button type="button" class="btn" data-act="opadd" data-v="w">${L('+ إضافة شباك','+ Add window')}</button>
+      <span class="op-total">${L('إجمالي الفتحات','Total openings')}: <b class="num" id="op-total">${fmtF(opArea(v),2)} m²</b></span></div>
+  </fieldset>`;
+}
 function nameErr(t,list){
   const n=(t.name||'').trim();
   if(!n)return L('أدخل اسم النوع.','Enter a type name.');
@@ -1980,6 +2213,8 @@ function nameErr(t,list){
 
 function renderResults(){
   const box=$('#results');if(!box)return;
+  if(S.type==='tie'&&S.noTie){box.innerHTML=`<div class="status warn">${I.warn}<span>${L('لا يوجد سملات في هذا المشروع.','This project has no tie beams.')}</span></div>`;S.last=null;return}
+  if(ELEMENTS[S.type].earth)syncLinkedBuried();
   const conc=S.mode==='conc',e=E(),a=cur();
   const errMap={};const badTypes=[];
   for(const t of e.list){const x=validate(S.type,t.inputs,S.mode,partOf());const ne=nameErr(t,e.list);if(ne)x.__name=ne;errMap[t.id]=x;if(Object.keys(x).length)badTypes.push(t)}
@@ -1995,7 +2230,7 @@ function renderResults(){
   const flat=S.type==='slab'||isFoot(S.type);
   const n2d=flat?[L('مسقط','Plan'),L('قطاع','Section')]:[L('مقطع عرضي','Cross'),L('قطاع طولي','Long section')];
   const title2d=cut?(flat?L('قطاع رأسي','Vertical section'):L('قطاع طولي','Longitudinal section')):(flat?L('مسقط أفقي للتسليح','Reinforcement plan'):L('مقطع عرضي','Cross-section'));
-  const drawing=ELEMENTS[S.type].earth?`<div class="drawing"><div class="drawing-head"><span>${L('قطاع في الحفر','Excavation section')} · ${esc(a.name)}</span><span>${L('مقياس تقريبي','Approximate scale')}</span></div>
+  const drawing=ELEMENTS[S.type].fin?'':ELEMENTS[S.type].earth?`<div class="drawing"><div class="drawing-head"><span>${L('قطاع في الحفر','Excavation section')} · ${esc(a.name)}</span><span>${L('مقياس تقريبي','Approximate scale')}</span></div>
       <div class="drawing-body">${activeOk?drawEarth(a.inputs):`<p class="muted" style="padding:3rem 1rem;font-size:var(--t-sm)">${L('صحّح الحقول المظللة لعرض الرسم.','Fix the highlighted fields to show the drawing.')}</p>`}</div></div>`
     :conc?'':`<div class="drawing"><div class="drawing-head"><span>${v3?L('نموذج ثلاثي الأبعاد','3D model'):title2d} · ${esc(a.name)}</span>
       <span style="display:inline-flex;gap:.4rem;flex-wrap:wrap">
@@ -2017,10 +2252,29 @@ function renderResults(){
       <button class="btn" data-act="copycalc">${I.copy}${L('نسخ','Copy')}</button>
       <button class="btn" data-act="xlsxcalc">${I.dl}Excel</button>
     </div>`;
+  if(el.fin){
+    box.innerHTML=`<div class="boq calc-sheet" aria-live="polite">
+      ${finTableHTML(L('بالمتر المربع ','Per m²: ')+elName(S.type),finRows(M),el.wLab)}
+      ${matHTML(M.mat)}
+      ${actions}</div>`;
+    return;
+  }
   if(el.earth){
-    const R_=earthRows(M),fillV=earthView()==='fill';
+    const R_=earthRows(M),fillV=earthView()==='fill',ai=numObj(a.inputs);
+    // where a linked buried volume comes from, for the open type
+    let link='';
+    if(fillV&&ai.kind===2&&ai.bvm===2){const r=linkedBuried(ai.dep);
+      link=`<section class="rep-sec"><h3>${L('حجم المنشآت المدفونة','Buried volume')} · ${esc(a.name)}</h3>
+      <div class="tbl-wrap"><table class="boq-t"><thead><tr><th style="width:60%">${H.desc()}</th><th>${L('الحجم م³','Volume m³')}</th></tr></thead><tbody>
+        <tr><td class="desc">${L('خرسانة القواعد المسلحة (تبويب الأساسات)','Reinforced footings (Footings tab)')}</td><td>${f3(r.foot)}</td></tr>
+        <tr><td class="desc">${L('خرسانة النظافة (تبويب الأساسات)','Blinding (Footings tab)')}</td><td>${f3(r.plain)}</td></tr>
+        <tr><td class="desc">${L('السملات (تبويب السملات)','Tie beams (Tie beams tab)')}</td><td>${r.noTie?L('لا يوجد','None'):f3(r.tie)}</td></tr>
+        <tr><td class="desc">${L(`رقاب الأعمدة بارتفاع ${fmtF(r.neckH,2)} م (تبويب الأعمدة)`,`Column necks, ${fmtF(r.neckH,2)} m high (Columns tab)`)}</td><td>${f3(r.neck)}</td></tr></tbody>
+        <tfoot><tr><td class="lbl">${L('المجموع المخصوم من الردم','Total deducted from backfill')}</td><td>${f3(r.total)}</td></tr></tfoot></table></div>
+      <p class="rep-note">${L('يتحدث تلقائيًا من القيم المكتوبة في تبويبات الأساسات والسملات والأعمدة. رقاب الأعمدة تُحسب للأعمدة التي لها طول داخل القاعدة فقط.','Updates automatically from the Footings, Tie beams and Columns tabs. Necks count only columns that go into a footing.')}</p></section>`}
     box.innerHTML=drawing+`<div class="boq calc-sheet" aria-live="polite">
       ${fillV?concTableHTML(secTitle('fill'),R_.fill):concTableHTML(secTitle('exc'),R_.exc)}
+      ${link}
       <p class="rep-note">${fillV
         ?L('الردم يُحسب من نفس أنواع الحفر (أبعادها في تبويب «الحفر»). «إضافة» = حجم الحفر، و«خصم» = حجم ما يُدفن (القاعدة والنظافة والرقبة، أو المنشآت المدفونة للمبنى).','Backfill uses the same types as the excavation (dimensions in the Excavation tab). "Add" is the excavated volume and "Deduct" is what gets buried (footing, blinding and neck, or the building\'s buried structures).')
         :L('الطول والعرض هما أبعاد الحفر: القاعدة مع بروز النظافة، أو أبعاد المبنى.','Length and width are the excavation size: the footing plus the blinding projection, or the building size.')}</p>
@@ -2053,6 +2307,8 @@ function renderResults(){
 
 function calcSummary(type,M,mode){
   const el=ELEMENTS[type],n=elName(type),part=concPart();
+  if(el.fin)return[n,...M.parts.map(p=>`  ${p.name}: ${f2(p.area)} ${L('م²','m²')}`),`${L('الإجمالي','Total')}: ${f2(M.area)} ${L('م²','m²')}`,
+    ...M.mat.map(m=>`${tr(m.label)}: ${fmtF(m.v,m.d)} ${tr(m.unit)}`)].join('\n');
   if(el.earth){const fv=earthView()==='fill';
     return[tr(EARTH_VIEW[earthView()].name),...M.parts.map(p=>`  ${p.name}: ${f3(fv?p.fill:p.exc)} ${M3()}`),
       `${L('الإجمالي','Total')}: ${f3(fv?M.fill:M.exc)} ${M3()}`+(fv?` · ${L('زائد للنقل','surplus to haul')} ${f3(M.surplus)} ${M3()}`:'')].join('\n')}
@@ -2084,6 +2340,12 @@ function reportData(p){
       const v=numObj(t.inputs);
       const add=(s,key,lbl,d)=>{const r=rowOf(lbl,d);const raw=ded[key]??(i===0&&!key.endsWith('-p')?ded[it.id]:undefined);
         r.raw=raw??'';r.bad=dedBad(raw,r.gross);r.ded=r.bad?0:(+raw||0);r.net=r.gross-r.ded;r.key=key;s.rows.push(r)};
+      if(el.fin){
+        // finishes: openings are the deduction (fixed); materials are collected per section
+        const c=el.calc(v),s=sec(it.type);s.rows.push({label,...c.fin,fixed:true});
+        s.mat=s.mat||[];for(const m of c.mat){const o=s.mat.find(x=>x.key===m.key);if(o)o.v+=m.v;else s.mat.push({...m})}
+        return;
+      }
       if(el.earth){
         // excavation: deductible like concrete; backfill: its deduction is the buried volume, not typed in
         const g=earthGeom(v),base={label,n:g.dims.n,L:g.a,W:g.b,H:g.dims.H},key=`${it.id}:${i}-e`,raw=ded[key];
@@ -2113,8 +2375,9 @@ function reportBody(p,editable,mode){
   }
   const tables=D.secs.map(s=>{
     if(editable)s.rows.filter(r=>!r.fixed).forEach(r=>r.dedCell=`<input class="ded${r.bad?' bad':''}" id="ded-${r.key}" data-ded="${r.key}" inputmode="decimal" value="${esc(r.raw)}" placeholder="—" aria-label="${H.ded()} ${esc(r.label)}" title="${r.bad?L('الخصم يجب أن يكون بين 0 و ','Deduction must be between 0 and ')+f3(r.gross):L('خصم بالمتر المكعب (تقاطعات، فتحات)','Deduction in m³ (intersections, openings)')}">`);
+    if(s.fin)return finTableHTML(s.title,s.rows,ELEMENTS[s.key].wLab)+matHTML(s.mat||[]);
     return concTableHTML(s.title,s.key==='footing'?footOrder(s.rows):s.rows)}).join('');
-  const cs=D.secs.filter(s=>!s.earth),total=sum(cs,s=>sum(s.rows,'net'));
+  const cs=D.secs.filter(s=>!s.earth&&!s.fin),total=sum(cs,s=>sum(s.rows,'net'));
   if(!cs.length)return tables;
   return tables+`<section class="rep-sec"><h3>${CONC_SUM()}</h3>
     <div class="tbl-wrap"><table class="boq-t">
@@ -2260,6 +2523,25 @@ function xlConc(X,title,rows){
   const b=X.r-1;
   xlFoot(X,9,H.itemTot(),6,[xSum(7,a,b,sum(rows,'ded')),xSum(8,a,b,sum(rows,'gross')),xSum(9,a,b,sum(rows,'net'))],'0.000');
 }
+function xlFin(X,title,rows,wLab){
+  xlLine(X,ITEM()+title,9);
+  xlHead(X,9,[{t:H.desc(),c:1,rs:2},{t:H.unit(),c:2,rs:2},{t:H.count(),c:3,rs:2},{t:H.dims(),c:4,c2:5},{t:L('عدد الأوجه','Faces'),c:6,rs:2},{t:H.qty(),c:7,c2:9}],
+    [{t:H.len(),c:4},{t:tr(wLab),c:5},{t:H.ded(),c:7},{t:H.add(),c:8},{t:H.tot(),c:9}]);
+  const a=X.r;
+  for(const x of rows){const i=X.r;
+    // add = count × length × width/height × faces; total = add − openings
+    xlRow(X,[x.note?`${x.label} (${x.note})`:x.label,L('م²','m²'),x.n,x.L,x.W,x.sd,x.ded||null,{formula:`C${i}*D${i}*E${i}*F${i}`,result:x.gross},{formula:`H${i}-G${i}`,result:x.net}],
+      ['@','@','0','0.00','0.00','0','0.00','0.00','0.00'],[9]);
+  }
+  const b=X.r-1;
+  xlFoot(X,9,H.itemTot(),6,[xSum(7,a,b,sum(rows,'ded')),xSum(8,a,b,sum(rows,'gross')),xSum(9,a,b,sum(rows,'net'))],'0.00');
+}
+function xlMat(X,mat){
+  if(!mat.length)return;
+  xlHead(X,3,[{t:L('المواد','Materials'),c:1},{t:H.unit(),c:2},{t:L('الكمية','Quantity'),c:3}],null);
+  for(const m of mat)xlRow(X,[tr(m.label),tr(m.unit),m.v],['@','@',m.d?'0.'+'0'.repeat(m.d):'0'],[3]);
+  X.r++;
+}
 function xlSteel(X,title,rows){
   xlLine(X,ITEM()+title,7);
   xlHead(X,7,[{t:H.desc(),c:1,rs:2},{t:H.dia(),c:2,rs:2},{t:H.count(),c:3,rs:2},{t:H.barLen(),c:4,rs:2},{t:H.totLen(),c:5,rs:2},{t:H.qty(),c:6,c2:7}],
@@ -2297,11 +2579,19 @@ function reportXlsx(p,mode){
     const X=xlSheet(wb,repTitle(mode));
     xlMeta(X,p,repTitle(mode));
     if(steel){for(const t of steelSplit(D.steel,L('جميع العناصر الخرسانية','all concrete elements')))xlSteel(X,t.title,t.rows)}
-    else{for(const s of D.secs)xlConc(X,s.title,s.key==='footing'?footOrder(s.rows):s.rows);const cs=D.secs.filter(s=>!s.earth);if(cs.length)xlConcSummary(X,cs)}
+    else{for(const s of D.secs){if(s.fin){xlFin(X,s.title,s.rows,ELEMENTS[s.key].wLab);xlMat(X,s.mat||[])}else xlConc(X,s.title,s.key==='footing'?footOrder(s.rows):s.rows)}
+      const cs=D.secs.filter(s=>!s.earth&&!s.fin);if(cs.length)xlConcSummary(X,cs)}
   },fileSafe(p.name)+(steel?L('-حصر-حديد','-rebar-takeoff'):L('-حصر-خرسانة','-concrete-takeoff'))+'.xlsx');
 }
 function calcXlsx(){
   const M=S.last,el=ELEMENTS[S.type],conc=S.mode==='conc',n=elName(S.type);if(!M)return;
+  if(el.fin){
+    saveWorkbook(wb=>{const X=xlSheet(wb,n);
+      xlLine(X,L('حساب التشطيبات — ','Finishes — ')+n,9,{size:15,color:XC.ink});xlLine(X,L('التاريخ : ','Date: ')+today(),9,{size:11,color:XC.ink,bold:false});X.r++;
+      xlFin(X,L('بالمتر المربع ','Per m²: ')+n,finRows(M),el.wLab);xlMat(X,M.mat);
+    },L('تشطيبات-','finishes-')+fileSafe(n)+'-'+today()+'.xlsx');
+    return;
+  }
   if(el.earth){
     saveWorkbook(wb=>{const X=xlSheet(wb,n);
       xlLine(X,n,9,{size:15,color:XC.ink});xlLine(X,L('التاريخ : ','Date: ')+today(),9,{size:11,color:XC.ink,bold:false});X.r++;
@@ -2358,7 +2648,7 @@ function saveModal(presetProject){
     if(!ok||!S.last)return;
     let p=P.find(x=>x.id===pid);
     if(pid==='__new'){p={id:uid(),name:nn,location:'',created:today(),items:[]};P.unshift(p)}
-    const types=E().list.map(t=>({name:t.name.trim(),inputs:{...t.inputs}}));
+    const types=E().list.map(t=>({name:t.name.trim(),inputs:clone(t.inputs)}));
     p.items.push({id:uid(),type:S.type,label,types,r:stripR(computeMulti(S.type,types)),date:today()});
     S.lastProject=p.id;S.open[p.id]=true;save();closeModal();toast(L(`حُفظ «${label}» في ${p.name}.`,`Saved "${label}" to ${p.name}.`));
   };
@@ -2381,7 +2671,7 @@ function confirmModal(msg,okLabel,fn){
 
 /* ================== sample project ================== */
 function exampleProject(){
-  const mk=(type,label,types)=>{const ts=types.map(([name,inp])=>({name,inputs:{...ELEMENTS[type].def,...inp}}));
+  const mk=(type,label,types)=>{const ts=types.map(([name,inp])=>({name,inputs:clone({...ELEMENTS[type].def,...inp})}));
     return{id:uid(),type,label,types:ts,r:stripR(computeMulti(type,ts)),date:today()}};
   const p=t=>tr(ELEMENTS[t].prefix);
   return{id:uid(),name:L('فيلا سكنية دورين','Two-storey villa'),location:L('مثال توضيحي','Illustrative example'),created:today(),example:true,items:[
@@ -2611,9 +2901,28 @@ app.addEventListener('click',e=>{
   }
   else if(a==='go'){S.view=v;render();scrollTo(0,0)}
   else if(a==='logout'){store.del('cc.session');S.user=null;S.view='auth';S.authTab='login';render()}
-  else if(a==='type'){S.type=v;if(b.dataset.view)S.earthView=b.dataset.view;render()}
+  else if(a==='type'){S.type=v;if(b.dataset.view)S.earthView=b.dataset.view;if(ELEMENTS[v].fin)S.finType=v;render()}
   else if(a==='concpart'){S.concPart=v;render()}
+  else if(a==='finop'){const i=cur().inputs;i.opm=+v;if(+v===2&&!opRows(i).length)i.ops=OPEN_ROWS();render()}
+  else if(a==='opadd'){const i=cur().inputs;i.ops=opRows(i).slice();i.ops.push(v==='w'?{k:'w',n:1,w:1.2,h:1.2}:{k:'d',n:1,w:.9,h:2.1});render()}
+  else if(a==='opdel'){const i=cur().inputs;i.ops=opRows(i).filter((_,j)=>j!==+v);render()}
+  else if(a==='finhi'){
+    // keep the same wall area: metres × height ↔ one figure that already includes the height
+    const i=cur().inputs,k=+v;if((+i.hi===2?2:1)===k)return;
+    if(k===2)i.TL=+((+i.TL||0)*(+i.W||0)).toFixed(2)||i.TL;else if(+i.W>0)i.TL=+((+i.TL||0)/(+i.W)).toFixed(2);
+    i.hi=k;render()}
+  else if(a==='finlm'){
+    // switching keeps the total wall length: wall rows ↔ one total of running metres (height = area-weighted average)
+    const i=cur().inputs,k=+v;if((byRun(i)?2:1)===k)return;
+    const rows=wallRows(i),len=sum(rows,r=>(+r.c||0)*(+r.l||0)),area=sum(rows,wallRowArea);
+    if(k===2){if(len){i.TL=+(+i.hi===2?area:len).toFixed(2);if(+i.hi!==2)i.W=+(area/len).toFixed(2)}}
+    else if(!Array.isArray(i.walls))i.walls=+i.hi===2?[{c:1,l:+i.TL||0,h:1}]:[{c:1,l:+i.TL||0,h:+i.W||0}];
+    i.lm=k;render()}
+  else if(a==='walladd'){const i=cur().inputs;i.walls=wallRows(i).map(x=>({...x}));const p=i.walls[i.walls.length-1];i.walls.push({c:1,l:4,h:p?p.h:3});render()}
+  else if(a==='walldel'){const i=cur().inputs;i.walls=wallRows(i).filter((_,j)=>j!==+v);render()}
   else if(a==='embm'){cur().inputs.embm=+v;render()}
+  else if(a==='earthbv'){cur().inputs.bvm=+v;render()}
+  else if(a==='hastie'){S.noTie=v==='2';store.set('cc.notie',S.noTie);render()}
   else if(a==='earthby'){const i=cur().inputs,k=+v;if((+i.by===2?2:1)===k)return;
     // keep the footprint: area from length × width, or a square of the same area back
     if(k===2)i.gA=+((+i.gL||0)*(+i.gW||0)).toFixed(2)||i.gA;else{const sd=Math.sqrt(+i.gA||0);if(!(Math.abs(i.gL*i.gW-i.gA)<.01)){i.gL=+sd.toFixed(2);i.gW=+sd.toFixed(2)}}
@@ -2632,9 +2941,14 @@ app.addEventListener('click',e=>{
     const F0=ELEMENTS.footing;t.inputs={...F0.def,...(k===2?F0.def2:{})};
     const oldPre=tr(KIND_PREFIX[k===2?1:2]);if(new RegExp('^'+oldPre+'\\d+$').test(t.name))t.name=nextName(E().list.filter(x=>x!==t),k);
     render();toast(k===2?L(`${t.name} الآن قاعدة مشتركة.`,`${t.name} is now a combined footing.`):L(`${t.name} الآن قاعدة منفصلة.`,`${t.name} is now an isolated footing.`))}
-  else if(a==='mode'){S.mode=v;render()}
+  else if(a==='mode'){
+    // finishes have their own tabs; remember the structural tab to come back to it
+    const wasFin=!!ELEMENTS[S.type].fin;S.mode=v;
+    if(v==='fin'&&!wasFin){S.lastStruct=S.type;S.type=S.finType||'block'}
+    else if(v!=='fin'&&wasFin)S.type=S.lastStruct||'column';
+    render()}
   else if(a==='seltype'){E().active=v;render()}
-  else if(a==='addtype'){const e2=E(),src=cur(),id=uid();e2.list.push({id,name:nextName(e2.list,isFoot(S.type)?kindOf(src.inputs):0),inputs:{...src.inputs}});e2.active=id;render();
+  else if(a==='addtype'){const e2=E(),src=cur(),id=uid();e2.list.push({id,name:nextName(e2.list,isFoot(S.type)?kindOf(src.inputs):0),inputs:clone(src.inputs)});e2.active=id;render();
     const n=$('#f-name');if(n){n.focus();n.select()}toast(L(`أُضيف نوع جديد بنفس مقاسات ${src.name}. عدّل أبعاده.`,`New type added with the same sizes as ${src.name}. Edit its dimensions.`))}
   else if(a==='deltype'){const e2=E();if(e2.list.length<2)return;const t=e2.list.find(x=>x.id===v);e2.list=e2.list.filter(x=>x.id!==v);
     if(e2.active===v)e2.active=e2.list[0].id;render();toast(L('حُذف النوع ','Removed type ')+(t?t.name:''))}
@@ -2646,7 +2960,7 @@ app.addEventListener('click',e=>{
   else if(a==='delproj'){const p=proj(v);confirmModal(L(`حذف المشروع «${esc(p.name)}» وكل بنوده؟`,`Delete project "${esc(p.name)}" and all its items?`),L('حذف المشروع','Delete project'),()=>{S.data.projects=S.data.projects.filter(x=>x.id!==v);save();toast(L('حُذف المشروع.','Project deleted.'))})}
   else if(a==='delitem'){const p=proj(b.dataset.p);const it=p.items.find(x=>x.id===v);confirmModal(L(`حذف البند «${esc(it.label)}»؟`,`Delete item "${esc(it.label)}"?`),L('حذف البند','Delete item'),()=>{p.items=p.items.filter(x=>x.id!==v);save();toast(L('حُذف البند.','Item deleted.'))})}
   else if(a==='openitem'){const p=proj(b.dataset.p);const it=p.items.find(x=>x.id===v);
-    const list=it.types.map(t=>({id:uid(),name:t.name,inputs:{...ELEMENTS[it.type].def,...t.inputs}}));
+    const list=it.types.map(t=>({id:uid(),name:t.name,inputs:clone({...ELEMENTS[it.type].def,...t.inputs})}));
     S.type=it.type;S.vals[it.type]={list,active:list[0].id};S.lastProject=p.id;S.view='calc';render();scrollTo(0,0);
     toast(L(`فُتح «${it.label}» للتعديل. احفظه كبند جديد بعد التعديل.`,`Opened "${it.label}" for editing. Save it as a new item when done.`))}
   else if(a==='copyproj'){const p=proj(v);const t=projTotals(p);
@@ -2659,6 +2973,7 @@ app.addEventListener('click',e=>{
   else if(a==='rephtml'){const p=proj(S.reportId);offerFile(fileSafe(p.name)+(S.repMode==='steel'?L('-حصر-حديد','-rebar-takeoff'):L('-حصر-خرسانة','-concrete-takeoff'))+'.html',reportHTMLFile(p,S.repMode))}
   else if(a==='savecalc'){if(!S.last)return;
     // a saved item feeds both reports, so the other calculation's fields must be valid for every type too
+    if(ELEMENTS[S.type].fin){saveModal(S.lastProject);return}
     if(ELEMENTS[S.type].earth){
       // excavation and backfill share the types: check both views and open the one with the problem
       const bad=E().list.find(t=>Object.keys(validate(S.type,t.inputs)).length);
@@ -2684,6 +2999,25 @@ document.addEventListener('keydown',e=>{
 });
 app.addEventListener('input',e=>{
   const t=e.target;
+  if(t.dataset.op){
+    // one cell of a door/window row: update it, its area and the total, then the results
+    const[ix,key]=t.dataset.op.split(':'),i=cur().inputs;if(!Array.isArray(i.ops))i.ops=opRows(i).map(x=>({...x}));
+    const r=i.ops[+ix];if(!r)return;
+    r[key]=key==='k'?t.value:t.value;
+    if(key!=='k'){const ok=t.value!==''&&!isNaN(+t.value)&&+t.value>=0;t.classList.toggle('bad-in',!ok)}
+    const ra=document.getElementById('op-a-'+ix);if(ra)ra.textContent=fmtF(opRowArea(r),2)+' m²';
+    const tt=document.getElementById('op-total');if(tt)tt.textContent=fmtF(opArea(i),2)+' m²';
+    renderResults();return;
+  }
+  if(t.dataset.wall){
+    // one cell of a wall row: update it, its area and the total, then the results
+    const[ix,key]=t.dataset.wall.split(':'),i=cur().inputs;if(!Array.isArray(i.walls))i.walls=wallRows(i).map(x=>({...x}));
+    const r=i.walls[+ix];if(!r)return;r[key]=t.value;
+    t.classList.toggle('bad-in',!(t.value!==''&&!isNaN(+t.value)&&+t.value>=0));
+    const ra=document.getElementById('wl-a-'+ix);if(ra)ra.textContent=fmtF(wallRowArea(r),2)+' m²';
+    const tt=document.getElementById('wl-total');if(tt)tt.textContent=fmtF(sum(i.walls,wallRowArea),2)+' m²';
+    renderResults();return;
+  }
   if(t.dataset.k){const i=cur().inputs;
     // the footing mesh count swaps whole sections, so it redraws the form; going to two meshes starts the bottom mesh from the single mesh
     if(t.dataset.k==='layers'&&isFoot(S.type)){if(+t.value===2&&+i.layers!==2){i.dBL=i.dBS=i.d;i.sBL=i.sBS=i.s}i.layers=t.value;render();return}
